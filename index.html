@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f59e0b">
+<title>Kipclub 🐔</title>
+<style>
+:root{--bg:#fff8eb;--ink:#2b2118;--muted:#8a7a68;--acc:#f59e0b;--ok:#16a34a;--bad:#dc2626;--ext:#7c3aed}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:linear-gradient(135deg,#f59e0b,#ea580c);color:#fff;padding:28px 12px 80px;text-align:center}
+header h1{margin:0;font-size:2.1rem;letter-spacing:.5px}
+header p{margin:6px 0 0;opacity:.92}
+nav{display:flex;gap:6px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+nav button{border:0;background:rgba(255,255,255,.25);color:#fff;padding:8px 14px;border-radius:999px;font-weight:600;font-size:.9rem;cursor:pointer}
+nav button.on{background:#fff;color:#c2410c}
+main{max-width:860px;margin:-50px auto 40px;padding:0 14px}
+.card{background:#fff;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 6px 18px rgba(80,50,0,.1)}
+.card h2{margin:0 0 12px;font-size:1.1rem}
+.next{text-align:center}
+.next .label{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:1px}
+.next .big{font-size:1.9rem;font-weight:800;margin:6px 0}
+.next .sub{color:var(--muted)}
+.pill{display:inline-block;padding:4px 12px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:700;margin:8px 0}
+.pill.bad{background:#fee2e2;color:#991b1b}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.chip{padding:3px 10px;border-radius:999px;font-size:.8rem;background:#dcfce7;color:#166534}
+.chip.weg{background:#f1ede6;color:#b3a898;text-decoration:line-through}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:#fff;border-radius:16px;padding:14px;text-align:center;box-shadow:0 6px 18px rgba(80,50,0,.1)}
+.tile b{display:block;font-size:1.8rem;color:#c2410c}
+.tile span{color:var(--muted);font-size:.85rem}
+.bar{display:grid;grid-template-columns:70px 1fr 56px;gap:10px;align-items:center;margin:8px 0;font-size:.92rem}
+.track{background:#f5efe3;border-radius:999px;height:16px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#fbbf24,#f97316);border-radius:999px;transition:width .6s}
+.bar .v{text-align:right;font-weight:700}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filters button,.meer{border:1px solid #f0e2c2;background:#fff;padding:6px 12px;border-radius:999px;cursor:pointer;font-size:.85rem}
+.filters button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.meer{display:block;margin:10px auto;padding:10px 18px;font-weight:600}
+.maand{margin:18px 4px 8px;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.rij{display:flex;gap:12px;background:#fff;border-radius:14px;padding:12px;margin-bottom:10px;box-shadow:0 3px 10px rgba(80,50,0,.07);border-left:5px solid var(--ok)}
+.rij.afgelast{border-left-color:var(--bad);opacity:.75}
+.rij.extern{border-left-color:var(--ext)}
+.rij.voorstel{border-left:5px dashed #fbbf24;background:#fffdf7}
+.rij.compact{box-shadow:none;border:1px solid #f3e8d0;border-left-width:5px;margin-bottom:8px}
+.rij.compact.voorstel{border-left:5px dashed #fbbf24}
+.dat{min-width:46px;text-align:center;line-height:1.1}
+.dat b{display:block;font-size:1.5rem}
+.dat span{font-size:.75rem;text-transform:uppercase;color:var(--muted)}
+.rij .tekst{flex:1}
+.rij .titel{font-weight:700}
+.rij .klein{color:var(--muted);font-size:.8rem}
+.rij .chips{justify-content:flex-start;margin-top:6px}
+.badge{display:inline-block;background:#ede9fe;color:#5b21b6;border-radius:8px;padding:2px 8px;font-size:.78rem;margin-top:6px;margin-right:4px;font-weight:600}
+.badge.v{background:#fef3c7;color:#92400e}
+.opm{font-size:.85rem;margin-top:4px}
+footer{text-align:center;color:var(--muted);font-size:.8rem;padding-bottom:30px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐔 Kipclub</h1>
+  <p>Elke dinsdag om 19:00 aan tafel</p>
+  <nav>
+    <button class="on" data-t="t-next">Home</button>
+    <button data-t="t-agenda">Agenda</button>
+    <button data-t="t-archief">Archief</button>
+    <button data-t="t-stats">Statistieken</button>
+  </nav>
+</header>
+
+<main>
+  <section class="tab" id="t-next"></section>
+  <section class="tab" id="t-agenda" hidden></section>
+  <section class="tab" id="t-archief" hidden></section>
+  <section class="tab" id="t-stats" hidden></section>
+</main>
+<footer id="bron">Laden…</footer>
+
+<script>
+// ===== Instellingen =====
+const PUB_ID = "2PACX-1vRb4JE6A4J4bbTihuFTWQ015bhu2rA-nTREesiFD2OwyBlORo6oy26muSUPQF5DPKF94ueo8rPKaaVv";
+const SHEET_ID = "1whjIawqrVTR2V4EITEpIbmjMVZwP0f3crCgoyreoeSA";
+const GID = "1844513263"; // tabblad met de planning
+// Er wordt van boven naar beneden geprobeerd; de eerste die werkt wint.
+const CSV_URLS = [
+  `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/pub?gid=${GID}&single=true&output=csv`,
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`
+];
+const AGENDA_START_WEKEN = 16; // zoveel weken vooruit in het tabblad Agenda
+const AGENDA_STAP = 8;         // zoveel weken extra per klik
+
+const STAND = "20 okt 2026";
+const ALLE = "Arie, Ger, Sjon, Jochem, Wop";
+// Reservegegevens: weeknr|datum|locatie|aanwezigen (* = iedereen)|activiteit|opmerking
+const EMBED = `
+35|26-8-2025|Jochem|*|LEKKER PRATEN|Herstart na zomerreces
+36|2-9-2025|Sjon|*|Nee|
+37|9-9-2025|Afgelast|Ger, Sjon|Nee|
+38|16-9-2025|Arie|Arie, Sjon, Jochem, Wop|Nee|
+39|23-9-2025|Afgelast|*|Nee|
+40|30-9-2025|Afgelast|*|Nee|
+41|7-10-2025|Ger|*|Nee|
+42|14-10-2025|Jochem|*|Nee|
+43|21-10-2025|Wop|Arie, Ger, Wop|Nee|
+44|28-10-2025|Afgelast|Ger, Sjon, Wop|Nee|
+45|4-11-2025|Afgelast|Arie, Ger, Sjon|Nee|In t Veen
+46|11-11-2025|Sjon|*|Nee|
+47|20-11-2025|Ger|*|Ja|20 november GSCF
+48|25-11-2025|Arie|Arie, Sjon, Jochem, Wop|Nee|
+49|2-12-2025|Wop|*|Nee|
+50|9-12-2025|Jochem|*|Nee|
+51|16-12-2025|Sjon|*|Nee|
+52|23-12-2025|Ger|*|Nee|
+53|30-12-2025|Sjon|*|Nee|
+2|6-1-2026|Wop|Ger, Sjon, Jochem, Wop|Nee|
+3|13-1-2026|Jochem|*|Nee|
+4|20-1-2026|Arie|*|Nee|
+5|27-1-2026|Ger|*|Nee|
+6|3-2-2026|Arie|*|Nee|
+7|10-2-2026|Wop|*|Nee|
+8|17-2-2026|Afgelast|*|Ja|DONAR
+9|24-2-2026|Afgelast|Ger, Sjon, Jochem|Nee|
+10|3-3-2026|Jochem|Arie, Sjon, Jochem, Wop|Nee|
+11|10-3-2026|Afgelast|Arie, Ger, Sjon, Wop|Nee|
+12|17-3-2026|Ger|Arie, Ger, Sjon, Wop|Nee|
+13|24-3-2026|Sjon|Arie, Ger, Sjon, Wop|Nee|Sjonna boi jarig
+14|31-3-2026|Arie|Arie, Ger, Sjon, Wop|Nee|
+15|7-4-2026|Wop|*|Nee|
+16|14-4-2026|Afgelast|Arie, Ger, Jochem|Nee|3 maar aanwezig
+17|21-4-2026|Jochem|Arie, Ger, Jochem, Wop|Nee|
+18|28-4-2026|Afgelast|Arie, Sjon|Nee|
+19|5-5-2026|Afgelast|*|Nee|IVM BEVRIJDINGSDA
+20|12-5-2026|Afgelast|*|Nee|Bierproeverij
+21|19-5-2026|Sjon|*|Nee|
+22|26-5-2026|Extern|*|Nee|Special BBQ
+23|2-6-2026|Ger|*|Nee|
+24|9-6-2026|Wop|Arie, Ger, Sjon, Wop|Nee|
+25|16-6-2026|Afgelast|Arie, Sjon, Jochem|Nee|21;00 Frankrijk - Senegal
+26|23-6-2026|Arie|*|Nee|19:00 Portugal - Oezbekistan. 22:00 Engeland - Ghana
+27|30-6-2026|Afgelast|*|Nee|ivm het marokko drama
+28|7-7-2026|Afgelast|Ger, Jochem, Wop|Nee|
+29|14-7-2026|Afgelast|Ger, Jochem, Wop|Nee|
+30|21-7-2026|Afgelast|Ger, Jochem, Wop|Nee|
+31|28-7-2026|Sjon|Ger, Sjon, Jochem, Wop|Nee|
+32|4-8-2026|Extern|*|Nee|Sneker stapavond
+33|11-8-2026|Jochem|*|Nee|
+34|18-8-2026|Ger|*|Nee|
+35|25-8-2026|Arie|*|Nee|
+36|1-9-2026|Wop|Arie, Ger, Sjon, Wop|Nee|
+37|8-9-2026|Afgelast|Arie, Ger, Sjon, Wop|Nee|
+38|15-9-2026|Afgelast|Arie, Sjon|Nee|
+39|22-9-2026|Afgelast|Arie, Sjon|Nee|
+40|29-9-2026|Afgelast|Arie, Sjon, Wop|Nee|
+41|6-10-2026|Jochem|*|Nee|
+42|13-10-2026|Extern|Arie, Sjon, Wop|Nee|
+`;
+
+// ===== Hulpfuncties =====
+const $ = s => document.querySelector(s);
+function h(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt !== undefined) e.textContent = txt;
+  return e;
+}
+function parseDatum(t) {
+  if (!t) return null;
+  t = t.trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], m[2] - 1, +m[3]);
+  m = t.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (m) return new Date(+m[3], m[2] - 1, +m[1]);
+  return null;
+}
+function parseCSV(t) {
+  const rows = []; let r = [], c = "", q = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { c += '"'; i++; } else q = false; } else c += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { r.push(c); c = ""; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; r.push(c); c = ""; rows.push(r); r = []; }
+    else c += ch;
+  }
+  if (c !== "" || r.length) { r.push(c); rows.push(r); }
+  return rows;
+}
+function norm(o) {
+  const d = parseDatum(o.datum); if (!d) return null;
+  const loc = (o.locatie || "").trim();
+  const act = (o.activiteit || "").trim();
+  const l = loc.toLowerCase();
+  return {
+    wk: (o.weeknummer || "").trim(), d, loc,
+    aanw: (o.aanwezigen || "").split(",").map(s => s.trim()).filter(Boolean),
+    act: act && act.toLowerCase() !== "nee" ? act : "",
+    opm: (o.opmerkingen || "").trim(),
+    status: l === "afgelast" ? "afgelast" : l === "extern" ? "extern" : "koken"
+  };
+}
+const fmt = (d, o) => d.toLocaleDateString("nl-NL", o);
+const kort = d => fmt(d, { day: "numeric", month: "short", year: "numeric" });
+const vandaag = new Date(); vandaag.setHours(0, 0, 0, 0);
+const actTekst = r => r.act.toLowerCase() === "ja" ? (r.opm || "Activiteit") : r.act;
+
+let DATA = [], PERS = [], agendaWeken = AGENDA_START_WEKEN;
+
+// ===== Laden =====
+async function laden() {
+  let bron = "Live uit Google Sheets";
+  let gelukt = false;
+  for (const url of CSV_URLS) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const rows = parseCSV(await res.text());
+      const head = rows[0].map(x => x.trim().toLowerCase());
+      if (!head.includes("datum")) continue;
+      DATA = rows.slice(1).map(r => { const o = {}; head.forEach((k, i) => o[k] = r[i] || ""); return norm(o); }).filter(Boolean);
+      if (DATA.length) { gelukt = true; break; }
+    } catch (e) { /* volgende proberen */ }
+  }
+  if (!gelukt) {
+    DATA = EMBED.trim().split("\n").map(l => {
+      const [weeknummer, datum, locatie, aan, activiteit, opmerkingen] = l.split("|");
+      return norm({ weeknummer, datum, locatie, aanwezigen: aan === "*" ? ALLE : aan, activiteit, opmerkingen });
+    }).filter(Boolean);
+    bron = `Offline gegevens (stand ${STAND}) – de live koppeling werkte niet`;
+  }
+  DATA.sort((a, b) => a.d - b.d);
+  PERS = [...new Set(DATA.flatMap(r => r.aanw))];
+  $("#bron").textContent = "Bron: " + bron;
+  renderAll();
+}
+function renderAll() { renderNext(); renderAgenda(); renderArchief("alles"); renderStats(); }
+
+// ===== Agenda berekenen =====
+// Combineert geplande rijen uit de Sheet met voorgestelde dinsdagen (beurtvolgorde: langst geleden eerst).
+function agendaItems(weken) {
+  const last = {}, cnt = {};
+  PERS.forEach(p => { last[p] = null; cnt[p] = 0; });
+  DATA.filter(r => r.d < vandaag && r.status === "koken").forEach(r => {
+    if (r.loc in last) { last[r.loc] = r.d; cnt[r.loc]++; }
+  });
+  const dagen = new Map();
+  DATA.filter(r => r.d >= vandaag).forEach(r => dagen.set(r.d.getTime(), r));
+  const eind = new Date(vandaag); eind.setDate(eind.getDate() + weken * 7);
+  const t = new Date(vandaag);
+  while (t.getDay() !== 2) t.setDate(t.getDate() + 1);
+  for (; t <= eind; t.setDate(t.getDate() + 7)) {
+    if (!dagen.has(t.getTime())) dagen.set(t.getTime(), { d: new Date(t), voorstel: true });
+  }
+  return [...dagen.keys()].sort((a, b) => a - b).map(k => {
+    const r = dagen.get(k);
+    const it = { d: r.d, row: r.voorstel ? null : r, voorstel: !!r.voorstel, wie: null, laatste: null, status: r.status || "koken" };
+    if (it.voorstel) {
+      const pick = PERS.slice().sort((a, b) =>
+        (last[a] ? last[a].getTime() : 0) - (last[b] ? last[b].getTime() : 0) || cnt[a] - cnt[b])[0];
+      it.wie = pick;
+    } else if (r.status === "koken") {
+      it.wie = r.loc;
+    }
+    if (it.wie) {
+      it.laatste = last[it.wie] || null;
+      last[it.wie] = it.d; cnt[it.wie] = (cnt[it.wie] || 0) + 1;
+    }
+    return it;
+  });
+}
+function wekenGeleden(laatste, d) {
+  const w = Math.round((d - laatste) / (7 * 864e5));
+  return w <= 1 ? "vorige week" : `${w} weken geleden`;
+}
+function agendaRij(it, compact) {
+  const r = it.row;
+  const status = it.voorstel ? "voorstel" : it.status;
+  const c = h("div", "rij " + status + (compact ? " compact" : ""));
+  const dat = h("div", "dat");
+  dat.append(h("b", "", it.d.getDate()), h("span", "", fmt(it.d, { month: "short" })));
+  const t = h("div", "tekst");
+  let titel;
+  if (it.voorstel) titel = `🍳 ${it.wie}`;
+  else if (it.status === "afgelast") titel = "❌ Afgelast";
+  else if (it.status === "extern") titel = "🚗 Extern";
+  else titel = "🍳 " + it.wie;
+  t.append(h("div", "titel", titel));
+  let klein = fmt(it.d, { weekday: "long" });
+  if (it.wie) klein += it.laatste
+    ? ` · laatst gekookt: ${kort(it.laatste)} (${wekenGeleden(it.laatste, it.d)})`
+    : " · nog nooit gekookt";
+  t.append(h("div", "klein", klein));
+
+  // Aanwezigen
+  if (it.voorstel) {
+    t.append(h("div", "klein", "👥 Aanwezigen: nog niet bekend"));
+  } else if (r && it.status !== "afgelast") {
+    if (r.aanw.length) {
+      t.append(h("div", "klein", `👥 ${r.aanw.length} van ${PERS.length} aanwezig`));
+      const ch = h("div", "chips");
+      PERS.forEach(p => ch.append(h("span", "chip" + (r.aanw.includes(p) ? "" : " weg"), p)));
+      t.append(ch);
+    } else {
+      t.append(h("div", "klein", "👥 Aanwezigen: nog niet ingevuld"));
+    }
+  }
+
+  if (it.voorstel) t.append(h("span", "badge v", "voorstel (beurtvolgorde)"));
+  if (r && r.act) t.append(h("span", "badge", "🎉 " + actTekst(r)));
+  if (r && r.opm && !(r.act && r.act.toLowerCase() === "ja")) t.append(h("div", "opm", r.opm));
+  c.append(dat, t);
+  return c;
+}
+
+// ===== Tab: Home =====
+function renderNext() {
+  const box = $("#t-next"); box.textContent = "";
+  const items = agendaItems(10);
+  const eerste = items[0];
+  const card = h("div", "card next");
+  card.append(h("div", "label", "Eerstvolgende dinsdag"));
+  const n = Math.round((eerste.d - vandaag) / 864e5);
+  const wanneer = n === 0 ? "Vandaag!" : n === 1 ? "Morgen" : `Over ${n} dagen`;
+  const datumTxt = fmt(eerste.d, { weekday: "long", day: "numeric", month: "long" });
+  if (eerste.status === "afgelast" && !eerste.voorstel) {
+    card.append(h("div", "big", datumTxt), h("div", "pill bad", "Afgelast"));
+    if (eerste.row.opm) card.append(h("div", "sub", eerste.row.opm));
+  } else if (eerste.status === "extern" && !eerste.voorstel) {
+    card.append(h("div", "big", "Extern 🚗"), h("div", "sub", datumTxt + " · 19:00"), h("div", "pill", wanneer));
+    if (eerste.row.opm) card.append(h("div", "sub", eerste.row.opm));
+  } else {
+    card.append(h("div", "big", eerste.voorstel ? `${eerste.wie} is aan de beurt 🍳` : `${eerste.wie} kookt 🍳`));
+    card.append(h("div", "sub", datumTxt + " · 19:00"), h("div", "pill", wanneer));
+    if (eerste.voorstel) card.append(h("div", "sub", "Nog niet in de Sheet gezet – voorstel volgens beurtvolgorde"));
+    if (eerste.laatste) card.append(h("div", "sub", `Laatst gekookt: ${kort(eerste.laatste)}`));
+    const r = eerste.row;
+    if (r && r.act) card.append(h("div", "sub", "🎉 " + actTekst(r)));
+    else if (r && r.opm) card.append(h("div", "sub", r.opm));
+    if (r && r.aanw.length) {
+      const c = h("div", "chips");
+      PERS.forEach(p => c.append(h("span", "chip" + (r.aanw.includes(p) ? "" : " weg"), p)));
+      card.append(c);
+    }
+  }
+  box.append(card);
+
+  const k2 = h("div", "card");
+  k2.append(h("h2", "", "📅 Komende 5 edities"));
+  items.slice(0, 5).forEach(it => k2.append(agendaRij(it, true)));
+  const meer = h("button", "meer", "Bekijk volledige agenda →");
+  meer.onclick = () => toonTab("t-agenda");
+  k2.append(meer);
+  box.append(k2);
+}
+
+// ===== Tab: Agenda =====
+function renderAgenda() {
+  const box = $("#t-agenda"); box.textContent = "";
+  const info = h("div", "card");
+  info.append(h("div", "klein", "Alle geplande edities uit de Sheet, aangevuld met voorstellen volgens de beurtvolgorde (wie het langst geleden kookte, is aan de beurt). Een voorstel past zich aan zodra jij de Sheet bijwerkt."));
+  box.append(info);
+  let maand = "";
+  agendaItems(agendaWeken).forEach(it => {
+    const m = fmt(it.d, { month: "long", year: "numeric" });
+    if (m !== maand) { maand = m; box.append(h("div", "maand", m)); }
+    box.append(agendaRij(it, false));
+  });
+  const meer = h("button", "meer", `Toon ${AGENDA_STAP} weken meer`);
+  meer.onclick = () => { agendaWeken += AGENDA_STAP; renderAgenda(); };
+  box.append(meer);
+}
+
+// ===== Tab: Archief =====
+function archiefRij(r) {
+  const c = h("div", "rij " + r.status);
+  const dat = h("div", "dat");
+  dat.append(h("b", "", r.d.getDate()), h("span", "", fmt(r.d, { month: "short" })));
+  const t = h("div", "tekst");
+  t.append(h("div", "titel", r.status === "afgelast" ? "❌ Afgelast" : r.status === "extern" ? "🚗 Extern" : "🍳 " + r.loc));
+  t.append(h("div", "klein", `Week ${r.wk} · ${fmt(r.d, { weekday: "long", year: "numeric" })}`));
+  if (r.status !== "afgelast" && r.aanw.length) {
+    const ch = h("div", "chips");
+    PERS.forEach(p => ch.append(h("span", "chip" + (r.aanw.includes(p) ? "" : " weg"), p)));
+    t.append(ch);
+  }
+  if (r.act) t.append(h("span", "badge", "🎉 " + (r.act.toLowerCase() === "ja" ? "Activiteit" : r.act)));
+  if (r.opm) t.append(h("div", "opm", r.opm));
+  c.append(dat, t);
+  return c;
+}
+function renderArchief(filter) {
+  const box = $("#t-archief"); box.textContent = "";
+  const f = h("div", "filters");
+  [["alles", "Alles"], ["koken", "Gekookt"], ["afgelast", "Afgelast"], ["extern", "Extern"], ["act", "Activiteiten"]].forEach(([k, l]) => {
+    const b = h("button", k === filter ? "on" : "", l);
+    b.onclick = () => renderArchief(k);
+    f.append(b);
+  });
+  box.append(f);
+  const sel = DATA.filter(r => r.d < vandaag).filter(r =>
+    filter === "alles" ? true : filter === "act" ? !!r.act : r.status === filter).reverse();
+  if (!sel.length) box.append(h("div", "card", "Niets gevonden."));
+  sel.forEach(r => box.append(archiefRij(r)));
+}
+
+// ===== Tab: Statistieken =====
+function bars(titel, items, max, suffix) {
+  const c = h("div", "card"); c.append(h("h2", "", titel));
+  items.forEach(([naam, v]) => {
+    const r = h("div", "bar");
+    const tr = h("div", "track"); const fl = h("div", "fill"); fl.style.width = (max ? (v / max) * 100 : 0) + "%"; tr.append(fl);
+    r.append(h("span", "", naam), tr, h("span", "v", v + suffix));
+    c.append(r);
+  });
+  return c;
+}
+function renderStats() {
+  const box = $("#t-stats"); box.textContent = "";
+  const voorbij = DATA.filter(r => r.d < vandaag);
+  const gehouden = voorbij.filter(r => r.status !== "afgelast");
+  const afg = voorbij.filter(r => r.status === "afgelast").length;
+  const ext = voorbij.filter(r => r.status === "extern").length;
+  const acts = voorbij.filter(r => r.act).length;
+  const tiles = h("div", "tiles");
+  [[gehouden.length, "Gehouden"], [afg, "Afgelast"], [voorbij.length ? Math.round(afg / voorbij.length * 100) + "%" : "–", "Kans op afgelasting"],
+   [ext, "Extern"], [acts, "Activiteiten"]].forEach(([v, l]) => {
+    const t = h("div", "tile"); t.append(h("b", "", v), h("span", "", l)); tiles.append(t);
+  });
+  box.append(tiles);
+
+  const keer = PERS.map(p => [p, voorbij.filter(r => r.status === "koken" && r.loc === p).length]).sort((a, b) => b[1] - a[1]);
+  box.append(bars("🍳 Kookbeurten", keer, Math.max(1, ...keer.map(x => x[1])), "×"));
+
+  const aanw = PERS.map(p => [p, gehouden.length ? Math.round(gehouden.filter(r => r.aanw.includes(p)).length / gehouden.length * 100) : 0]).sort((a, b) => b[1] - a[1]);
+  box.append(bars("🙋 Aanwezigheid (van gehouden avonden)", aanw, 100, "%"));
+
+  const info = h("div", "card");
+  info.append(h("div", "klein", `Berekend uit het archief (${voorbij.length} dinsdagen tot nu toe). Aanwezigheid telt alleen avonden die niet afgelast zijn.`));
+  box.append(info);
+}
+
+// ===== Tabs =====
+function toonTab(id) {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.t === id));
+  document.querySelectorAll(".tab").forEach(s => s.hidden = s.id !== id);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => toonTab(b.dataset.t));
+
+laden();
+</script>
+</body>
+</html>
