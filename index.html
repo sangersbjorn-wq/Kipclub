@@ -70,6 +70,9 @@ button:disabled{opacity:.6;cursor:wait}
 .act:first-of-type{border-top:0}
 .act .dat{min-width:46px}
 .waarsch{font-size:.8rem;color:#92400e;background:#fef3c7;border-radius:10px;padding:8px 10px;margin-top:8px}
+.form{display:grid;gap:8px}
+.form input{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit}
+.form button{padding:10px 14px;font-weight:700;background:var(--acc);color:#fff;border-color:var(--acc)}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2b2118;color:#fff;padding:10px 16px;border-radius:12px;font-size:.9rem;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;z-index:9}
 #toast.zie{opacity:1}
@@ -84,6 +87,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
     <button class="on" data-t="t-next">Home</button>
     <button data-t="t-agenda">Agenda</button>
     <button data-t="t-archief">Archief</button>
+    <button data-t="t-act">Activiteiten</button>
     <button data-t="t-stats">Statistieken</button>
   </nav>
 </header>
@@ -92,6 +96,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
   <section class="tab" id="t-next"></section>
   <section class="tab" id="t-agenda" hidden></section>
   <section class="tab" id="t-archief" hidden></section>
+  <section class="tab" id="t-act" hidden></section>
   <section class="tab" id="t-stats" hidden></section>
 </main>
 <footer id="bron">Laden…</footer>
@@ -291,7 +296,7 @@ let IK = "";
 try { IK = localStorage.getItem("kipclub_ik") || ""; } catch (e) {}
 function zetIk(p) { IK = p; try { if (p) localStorage.setItem("kipclub_ik", p); else localStorage.removeItem("kipclub_ik"); } catch (e) {} renderAll(); }
 
-let DATA = [], PERS = PERSONEN.slice(), agendaWeken = AGENDA_START_WEKEN, KAN_WIJZIGEN = false, archiefFilter = "alles", laatsteLaad = 0;
+let ACT = [], DATA = [], PERS = PERSONEN.slice(), agendaWeken = AGENDA_START_WEKEN, KAN_WIJZIGEN = false, archiefFilter = "alles", laatsteLaad = 0;
 
 // ===== Laden =====
 async function laden() {
@@ -307,7 +312,7 @@ async function laden() {
       if (j.archiefFout) waarschuwing = j.archiefFout + " – archief en statistieken zijn daardoor beperkt";
       const map = new Map();
       arch.concat(plan).forEach(r => map.set(r.d.getTime(), r));
-      rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
+      ACT = leesAct(j.activiteiten); rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
     } catch (e) { fouten.push("script: " + foutTekst(e)); }
   } else {
     fouten.push("SCRIPT_URL is nog leeg, afmelden staat uit");
@@ -349,7 +354,67 @@ async function laden() {
   laatsteLaad = Date.now();
   renderAll();
 }
-function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderStats(); }
+function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderAct(); renderStats(); }
+
+// ===== Activiteiten =====
+function leesAct(rows) {
+  return (rows || []).map(r => ({ d: parseDatum(r[0]), tekst: String(r[1] || "").trim(), door: String(r[2] || "").trim() }))
+    .filter(a => a.d && a.tekst);
+}
+function komendeActiviteiten() {
+  const lijst = ACT.filter(a => a.d >= vandaag).map(a => ({ d: a.d, tekst: a.tekst, door: a.door }));
+  DATA.filter(r => r.d >= vandaag && r.act).forEach(r => {
+    const tekst = actTekst(r);
+    if (!lijst.some(a => a.d.getTime() === r.d.getTime() && a.tekst.toLowerCase() === tekst.toLowerCase())) lijst.push({ d: r.d, tekst, door: "" });
+  });
+  return lijst.sort((a, b) => a.d - b.d);
+}
+async function meldActiviteit(datum, tekst, knop) {
+  if (!IK) return toast("Kies bovenaan eerst wie je bent");
+  if (!datum || !tekst.trim()) return toast("Vul een datum en een activiteit in");
+  knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
+  try {
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ actie: "activiteit", datum, tekst: tekst.trim(), naam: IK }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.fout || "onbekende fout");
+    ACT = leesAct(j.activiteiten);
+    renderAll();
+    toast("Activiteit aangemeld 🎉");
+  } catch (e) {
+    knop.disabled = false; knop.textContent = oud;
+    toast("Mislukt: " + foutTekst(e));
+  }
+}
+function actRij(a) {
+  const rij = h("div", "act");
+  const dat = h("div", "dat"); dat.append(h("b", "", a.d.getDate()), h("span", "", fmt(a.d, { month: "short" })));
+  const tk = h("div", "tekst");
+  tk.append(h("div", "titel", a.tekst), h("div", "klein", fmt(a.d, { weekday: "long", day: "numeric", month: "long" }) + (a.door ? " · door " + a.door : "")));
+  rij.append(dat, tk);
+  return rij;
+}
+function renderAct() {
+  const box = $("#t-act"); box.textContent = "";
+  box.append(ikKaart());
+  const f = h("div", "card");
+  f.append(h("h2", "", "➕ Activiteit aanmelden"));
+  if (!KAN_WIJZIGEN) {
+    f.append(h("div", "klein", "Aanmelden werkt alleen met een live verbinding met de Sheet."));
+  } else {
+    const form = h("div", "form");
+    const d = document.createElement("input"); d.type = "date"; d.min = iso(vandaag);
+    const t = document.createElement("input"); t.type = "text"; t.maxLength = 120; t.placeholder = "Wat gaan we doen?";
+    const k = h("button", "pl", "Aanmelden"); k.onclick = () => meldActiviteit(d.value, t.value, k);
+    form.append(d, t, k); f.append(form);
+  }
+  box.append(f);
+  const l = h("div", "card"); l.append(h("h2", "", "🎉 Komende activiteiten"));
+  const acts = komendeActiviteiten();
+  if (!acts.length) l.append(h("div", "klein", "Er staan nog geen activiteiten gepland."));
+  acts.forEach(a => l.append(actRij(a)));
+  box.append(l);
+}
 
 // ===== Afmelden / aanmelden =====
 async function zet(r, actie, knop) {
@@ -473,13 +538,13 @@ function agendaRij(it, compact) {
   t.append(h("div", "titel", titel));
   let klein = fmt(it.d, { weekday: "long" });
   if (it.wie) klein += it.laatste
-    ? ` · laatst gekookt: ${kort(it.laatste)} (${wekenGeleden(it.laatste, it.d)})`
+    ? ` · laatst gekookt: ${kort(it.laatste)}`
     : " · nog nooit gekookt";
   t.append(h("div", "klein", klein));
 
   if (it.voorstel) {
     t.append(h("div", "klein", "👥 Aanwezigen: nog niet bekend"));
-  } else if (r && it.status !== "afgelast") {
+  } else if (r) {
     if (r.aanw.length) {
       t.append(h("div", "klein", `👥 ${r.aanw.length} van ${PERS.length} aanwezig`));
       t.append(chipsVoor(r));
@@ -515,6 +580,7 @@ function renderNext() {
   const datumTxt = fmt(eerste.d, { weekday: "long", day: "numeric", month: "long" });
   if (eerste.status === "afgelast" && !eerste.voorstel) {
     card.append(h("div", "big", datumTxt), h("div", "pill bad", "Afgelast"));
+    if (eerste.row.aanw.length) card.append(chipsVoor(eerste.row));
     if (eerste.row.opm) card.append(h("div", "sub", eerste.row.opm));
   } else if (eerste.status === "extern" && !eerste.voorstel) {
     card.append(h("div", "big", "Extern 🚗"), h("div", "sub", datumTxt + " · 19:00"), h("div", "pill", wanneer));
@@ -554,17 +620,11 @@ function renderNext() {
   box.append(k2);
 
   // Kleine agenda met activiteiten
-  const acts = DATA.filter(r => r.d >= vandaag && r.act).slice(0, 5);
+  const acts = komendeActiviteiten().slice(0, 5);
   const k3 = h("div", "card");
   k3.append(h("h2", "", "🎉 Activiteiten"));
   if (!acts.length) k3.append(h("div", "klein", "Er staan nog geen activiteiten gepland."));
-  acts.forEach(r => {
-    const rij = h("div", "act");
-    const dat = h("div", "dat"); dat.append(h("b", "", r.d.getDate()), h("span", "", fmt(r.d, { month: "short" })));
-    const tk = h("div", "tekst");
-    tk.append(h("div", "titel", actTekst(r)), h("div", "klein", fmt(r.d, { weekday: "long", day: "numeric", month: "long" })));
-    rij.append(dat, tk); k3.append(rij);
-  });
+  acts.forEach(a => k3.append(actRij(a)));
   box.append(k3);
 }
 
@@ -594,7 +654,7 @@ function archiefRij(r) {
   const t = h("div", "tekst");
   t.append(h("div", "titel", r.status === "afgelast" ? "❌ Afgelast" : r.status === "extern" ? "🚗 Extern" : "🍳 " + r.loc));
   t.append(h("div", "klein", (r.wk ? `Week ${r.wk} · ` : "") + fmt(r.d, { weekday: "long", year: "numeric" })));
-  if (r.status !== "afgelast" && r.aanw.length) t.append(chipsVoor(r));
+  if (r.aanw.length) t.append(chipsVoor(r));
   if (r.act) t.append(h("span", "badge", "🎉 " + (r.act.toLowerCase() === "ja" ? "Activiteit" : r.act)));
   if (r.opm) t.append(h("div", "opm", r.opm));
   c.append(dat, t);
@@ -645,11 +705,12 @@ function renderStats() {
   const keer = PERS.map(p => [p, voorbij.filter(r => r.status === "koken" && r.loc === p).length]).sort((a, b) => b[1] - a[1]);
   box.append(bars("🍳 Kookbeurten", keer, Math.max(1, ...keer.map(x => x[1])), "×"));
 
-  const aanw = PERS.map(p => [p, gehouden.length ? Math.round(gehouden.filter(r => r.aanw.includes(p)).length / gehouden.length * 100) : 0]).sort((a, b) => b[1] - a[1]);
-  box.append(bars("🙋 Aanwezigheid (van gehouden avonden)", aanw, 100, "%"));
+  const metAanw = voorbij.filter(r => r.aanw.length);
+  const aanw = PERS.map(p => [p, metAanw.length ? Math.round(metAanw.filter(r => r.aanw.includes(p)).length / metAanw.length * 100) : 0]).sort((a, b) => b[1] - a[1]);
+  box.append(bars("🙋 Aanwezigheid (afgelaste avonden tellen mee)", aanw, 100, "%"));
 
   const info = h("div", "card");
-  info.append(h("div", "klein", `Berekend uit het archief (${voorbij.length} dinsdagen tot nu toe). Aanwezigheid telt alleen avonden die niet afgelast zijn.`));
+  info.append(h("div", "klein", `Berekend uit het archief (${voorbij.length} dinsdagen tot nu toe). Aanwezigheid telt ook afgelaste avonden mee (zolang er aanwezigen zijn ingevuld).`));
   box.append(info);
 }
 
