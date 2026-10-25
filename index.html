@@ -768,6 +768,19 @@ document.addEventListener("visibilitychange", () => {
 const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! 📣"];
 $("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
 
+// ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
+const BUILD = "2026-10-25b";
+(async () => {
+  try {
+    const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
+    const m = (await r.text()).match(/const BUILD = "([^"]+)"/);
+    if (m && m[1] !== BUILD && sessionStorage.getItem("kip_reload") !== m[1]) {
+      sessionStorage.setItem("kip_reload", m[1]);
+      location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]));
+    }
+  } catch (e) {}
+})();
+
 laden();
 </script>
 </body>
