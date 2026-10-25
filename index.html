@@ -368,24 +368,46 @@ function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter
 
 // ===== Activiteiten =====
 function leesAct(rows) {
-  return (rows || []).map(r => ({ d: parseDatum(r[0]), tekst: String(r[1] || "").trim(), door: String(r[2] || "").trim() }))
-    .filter(a => a.d && a.tekst);
+  rows = rows || [];
+  const kop = (rows[0] || []).map(c => String(c).trim().toLowerCase());
+  let cD = kop.indexOf("datum"), cT = kop.indexOf("tijd"), cA = kop.indexOf("activiteit"), cW = kop.findIndex(c => c.indexOf("aangemeld door") === 0);
+  if (cD < 0 || cA < 0) { cD = 0; cT = -1; cA = 1; cW = 2; }
+  return rows.map(r => {
+    const m = String(cT >= 0 ? r[cT] || "" : "").match(/(\d{1,2})[:.](\d{2})/);
+    return { d: parseDatum(r[cD]), tijd: m ? ("0" + m[1]).slice(-2) + ":" + m[2] : "", tekst: String(r[cA] || "").trim().replace(/^'/, ""), door: String(cW >= 0 ? r[cW] || "" : "").trim(), eigen: true };
+  }).filter(a => a.d && a.tekst);
 }
 function komendeActiviteiten() {
-  const lijst = ACT.filter(a => a.d >= vandaag).map(a => ({ d: a.d, tekst: a.tekst, door: a.door }));
+  const lijst = ACT.filter(a => a.d >= vandaag).map(a => ({ d: a.d, tijd: a.tijd, tekst: a.tekst, door: a.door, eigen: true }));
   DATA.filter(r => r.d >= vandaag && r.act).forEach(r => {
     const tekst = actTekst(r);
-    if (!lijst.some(a => a.d.getTime() === r.d.getTime() && a.tekst.toLowerCase() === tekst.toLowerCase())) lijst.push({ d: r.d, tekst, door: "" });
+    if (!lijst.some(a => a.d.getTime() === r.d.getTime() && a.tekst.toLowerCase() === tekst.toLowerCase())) lijst.push({ d: r.d, tijd: "", tekst, door: "" });
   });
-  return lijst.sort((a, b) => a.d - b.d);
+  return lijst.sort((a, b) => (a.d - b.d) || (a.tijd || "99:99").localeCompare(b.tijd || "99:99"));
 }
-async function meldActiviteit(datum, tekst, knop) {
+async function verwijderActiviteit(a, knop) {
+  if (!confirm("Activiteit '" + a.tekst + "' verwijderen?")) return;
+  knop.disabled = true;
+  try {
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ actie: "activiteit_verwijder", datum: iso(a.d), tekst: a.tekst }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.fout || "onbekende fout");
+    ACT = leesAct(j.activiteiten);
+    renderAll();
+    toast("Activiteit verwijderd");
+  } catch (e) {
+    knop.disabled = false;
+    toast("Mislukt: " + foutTekst(e));
+  }
+}
+async function meldActiviteit(datum, tijd, tekst, knop) {
   if (!IK) return toast("Kies bovenaan eerst wie je bent");
   if (!datum || !tekst.trim()) return toast("Vul een datum en een activiteit in");
   knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
   try {
     const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ actie: "activiteit", datum, tekst: tekst.trim(), naam: IK }) });
+      body: JSON.stringify({ actie: "activiteit", datum, tijd: tijd || "", tekst: tekst.trim(), naam: IK }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     ACT = leesAct(j.activiteiten);
@@ -396,12 +418,18 @@ async function meldActiviteit(datum, tekst, knop) {
     toast("Mislukt: " + foutTekst(e));
   }
 }
-function actRij(a) {
+function actRij(a, metKnop) {
   const rij = h("div", "act");
   const dat = h("div", "dat"); dat.append(h("b", "", a.d.getDate()), h("span", "", fmt(a.d, { month: "short" })));
   const tk = h("div", "tekst");
-  tk.append(h("div", "titel", a.tekst), h("div", "klein", fmt(a.d, { weekday: "long", day: "numeric", month: "long" }) + (a.door ? " · door " + a.door : "")));
+  tk.append(h("div", "titel", a.tekst), h("div", "klein", fmt(a.d, { weekday: "long", day: "numeric", month: "long" }) + (a.tijd ? " · om " + a.tijd : "") + (a.door ? " · door " + a.door : "")));
   rij.append(dat, tk);
+  if (metKnop && a.eigen && KAN_WIJZIGEN) {
+    const x = h("button", "", "🗑️"); x.title = "Verwijderen"; x.setAttribute("aria-label", "Verwijderen");
+    x.style.cssText = "margin-left:auto;background:none;border:0;font-size:18px;cursor:pointer;padding:6px";
+    x.onclick = () => verwijderActiviteit(a, x);
+    rij.append(x);
+  }
   return rij;
 }
 function renderAct() {
@@ -414,15 +442,16 @@ function renderAct() {
   } else {
     const form = h("div", "form");
     const d = document.createElement("input"); d.type = "date"; d.min = iso(vandaag);
+    const tm = document.createElement("input"); tm.type = "time"; tm.title = "Tijd (optioneel)"; tm.setAttribute("aria-label", "Tijd");
     const t = document.createElement("input"); t.type = "text"; t.maxLength = 120; t.placeholder = "Wat gaan we doen?";
-    const k = h("button", "pl", "Aanmelden"); k.onclick = () => meldActiviteit(d.value, t.value, k);
-    form.append(d, t, k); f.append(form);
+    const k = h("button", "pl", "Aanmelden"); k.onclick = () => meldActiviteit(d.value, tm.value, t.value, k);
+    form.append(d, tm, t, k); f.append(form);
   }
   box.append(f);
   const l = h("div", "card"); l.append(h("h2", "", "🎉 Komende activiteiten"));
   const acts = komendeActiviteiten();
   if (!acts.length) l.append(h("div", "klein", "Er staan nog geen activiteiten gepland."));
-  acts.forEach(a => l.append(actRij(a)));
+  acts.forEach(a => l.append(actRij(a, true)));
   box.append(l);
 }
 
