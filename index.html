@@ -80,6 +80,16 @@ button:disabled{opacity:.6;cursor:wait}
 .logo.wip{animation:wip .6s}
 @keyframes wip{0%,100%{transform:rotate(0)}25%{transform:rotate(-14deg) scale(1.08)}75%{transform:rotate(14deg) scale(1.08)}}
 .form{display:grid;gap:8px}
+.maal{padding:10px 0;border-top:1px solid var(--line)}
+.maal:first-of-type{border-top:0}
+.maal .titel{font-weight:700}
+.maal .klein{margin-top:2px}
+.cijfers{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.cijfers button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:6px 12px;font-weight:700;cursor:pointer}
+.cijfers button.mijn{background:var(--acc);color:#fff;border-color:var(--acc)}
+.gerechtform{display:flex;gap:6px;margin-top:8px}
+.gerechtform input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+.gerechtform button{border:0;background:var(--acc);color:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
 .form input{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit}
 .form button{padding:10px 14px;font-weight:700;background:var(--acc);color:#fff;border-color:var(--acc)}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
@@ -98,6 +108,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
     <button data-t="t-agenda">Agenda</button>
     <button data-t="t-archief">Archief</button>
     <button data-t="t-act">Activiteiten</button>
+    <button data-t="t-menu">Menu</button>
     <button data-t="t-stats">Statistieken</button>
   </nav>
 </header>
@@ -107,6 +118,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
   <section class="tab" id="t-agenda" hidden></section>
   <section class="tab" id="t-archief" hidden></section>
   <section class="tab" id="t-act" hidden></section>
+  <section class="tab" id="t-menu" hidden></section>
   <section class="tab" id="t-stats" hidden></section>
 </main>
 <footer id="bron">Laden…</footer>
@@ -306,6 +318,7 @@ let IK = "";
 try { IK = localStorage.getItem("kipclub_ik") || ""; } catch (e) {}
 function zetIk(p) { IK = p; try { if (p) localStorage.setItem("kipclub_ik", p); else localStorage.removeItem("kipclub_ik"); } catch (e) {} renderAll(); }
 
+let GERECHTEN = [], STEMMEN = [], menuAantal = 8;
 let ACT = [], DATA = [], PERS = PERSONEN.slice(), agendaWeken = AGENDA_START_WEKEN, KAN_WIJZIGEN = false, archiefFilter = "alles", laatsteLaad = 0;
 
 // ===== Laden =====
@@ -322,7 +335,7 @@ async function laden() {
       if (j.archiefFout) waarschuwing = j.archiefFout + " – archief en statistieken zijn daardoor beperkt";
       const map = new Map();
       arch.concat(plan).forEach(r => map.set(r.d.getTime(), r));
-      ACT = leesAct(j.activiteiten); rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
+      ACT = leesAct(j.activiteiten); GERECHTEN = leesGerechten(j.gerechten); STEMMEN = leesStemmen(j.stemmen); rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
     } catch (e) { fouten.push("script: " + foutTekst(e)); }
   } else {
     fouten.push("SCRIPT_URL is nog leeg, afmelden staat uit");
@@ -364,7 +377,114 @@ async function laden() {
   laatsteLaad = Date.now();
   renderAll();
 }
-function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderAct(); renderStats(); }
+function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderAct(); renderMenu(); renderStats(); }
+
+// ===== Menu: wat hebben we gekookt + stemmen =====
+function kolommenVan(rows, namen) {
+  const kop = (rows[0] || []).map(c => String(c).trim().toLowerCase());
+  return namen.map(n => kop.findIndex(c => c === n || c.indexOf(n) === 0));
+}
+function leesGerechten(rows) {
+  rows = rows || [];
+  const [cD, cG, cW] = kolommenVan(rows, ["datum", "gerecht", "ingevoerd door"]);
+  if (cD < 0 || cG < 0) return [];
+  return rows.slice(1).map(r => { const d = parseDatum(r[cD]); return { iso: d ? iso(d) : "", tekst: String(r[cG] || "").trim().replace(/^'/, ""), door: cW >= 0 ? String(r[cW] || "").trim() : "" }; })
+    .filter(g => g.iso && g.tekst);
+}
+function leesStemmen(rows) {
+  rows = rows || [];
+  const [cD, cN, cC] = kolommenVan(rows, ["datum", "naam", "cijfer"]);
+  if (cD < 0 || cN < 0 || cC < 0) return [];
+  return rows.slice(1).map(r => { const d = parseDatum(r[cD]); return { iso: d ? iso(d) : "", naam: String(r[cN] || "").trim(), cijfer: parseInt(r[cC], 10) }; })
+    .filter(v => v.iso && v.naam && v.cijfer >= 1 && v.cijfer <= 5);
+}
+const gerechtVan = isoDatum => GERECHTEN.find(g => g.iso === isoDatum);
+function scoreVan(isoDatum) {
+  const v = STEMMEN.filter(x => x.iso === isoDatum);
+  const mijn = IK ? (v.find(x => x.naam.toLowerCase() === IK.toLowerCase()) || {}).cijfer : undefined;
+  return { n: v.length, gem: v.length ? v.reduce((a, x) => a + x.cijfer, 0) / v.length : 0, mijn };
+}
+const cijferTxt = g => g.toFixed(1).replace(".", ",");
+function gekookteAvonden() {
+  return DATA.filter(r => r.d <= vandaag && r.status === "koken" && r.loc).sort((a, b) => b.d - a.d);
+}
+async function stuurNaarScript(body, knop) {
+  const oud = knop ? knop.textContent : ""; if (knop) { knop.disabled = true; knop.textContent = "…"; }
+  try {
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.fout || "onbekende fout");
+    return j;
+  } catch (e) {
+    if (knop) { knop.disabled = false; knop.textContent = oud; }
+    toast("Mislukt: " + (e.message && e.name !== "TypeError" ? e.message : foutTekst(e)));
+    return null;
+  }
+}
+function maaltijdRij(r, bewerk) {
+  const k = iso(r.d), g = gerechtVan(k), sc = scoreVan(k);
+  const rij = h("div", "maal");
+  rij.append(h("div", "titel", g ? "🍽️ " + g.tekst : "🍽️ Nog niet ingevuld"));
+  rij.append(h("div", "klein", fmt(r.d, { weekday: "long", day: "numeric", month: "long" }) + " · " + r.loc + " kookte" + (sc.n ? " · 🐔 " + cijferTxt(sc.gem) + " (" + sc.n + (sc.n === 1 ? " stem)" : " stemmen)") : "")));
+  if (KAN_WIJZIGEN && IK && (!g || bewerk)) {
+    const f = h("div", "gerechtform");
+    const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 80; inp.placeholder = "Wat werd er gekookt?"; inp.value = g ? g.tekst : "";
+    const kn = h("button", "", "Opslaan");
+    kn.onclick = async () => {
+      if (!inp.value.trim()) return toast("Vul een gerecht in");
+      const j = await stuurNaarScript({ actie: "gerecht", datum: k, tekst: inp.value.trim(), naam: IK }, kn);
+      if (j) { GERECHTEN = leesGerechten(j.gerechten); renderAll(); toast("Gerecht opgeslagen 🍽️"); }
+    };
+    f.append(inp, kn); rij.append(f);
+  } else if (KAN_WIJZIGEN && IK && g) {
+    const e = h("button", "meer", "✏️ Aanpassen"); e.onclick = () => { rij.replaceWith(maaltijdRij(r, true)); };
+    rij.append(e);
+  }
+  if (g && KAN_WIJZIGEN && IK) {
+    if (IK === r.loc) {
+      rij.append(h("div", "klein", "Je kunt je eigen gerecht niet beoordelen 😉"));
+    } else {
+      const c = h("div", "cijfers"); c.append(h("span", "klein", "Jouw cijfer:"));
+      for (let i = 1; i <= 5; i++) {
+        const b = h("button", sc.mijn === i ? "mijn" : "", String(i));
+        b.title = i + " van 5 kippen";
+        b.onclick = async () => {
+          const j = await stuurNaarScript({ actie: "stem", datum: k, naam: IK, cijfer: i }, b);
+          if (j) { STEMMEN = leesStemmen(j.stemmen); renderAll(); toast("Je cijfer is opgeslagen 🐔"); }
+        };
+        c.append(b);
+      }
+      rij.append(c);
+    }
+  }
+  return rij;
+}
+function renderMenu() {
+  const box = $("#t-menu"); box.textContent = "";
+  box.append(ikKaart());
+  const avonden = gekookteAvonden();
+  const metGerecht = avonden.filter(r => gerechtVan(iso(r.d)));
+  const beoordeeld = metGerecht.map(r => ({ r, g: gerechtVan(iso(r.d)), sc: scoreVan(iso(r.d)) })).filter(x => x.sc.n);
+  if (beoordeeld.length) {
+    const top = h("div", "card"); top.append(h("h2", "", "🏆 Beste gerechten"));
+    beoordeeld.slice().sort((a, b) => b.sc.gem - a.sc.gem || b.sc.n - a.sc.n).slice(0, 5).forEach((x, i) => {
+      const rij = h("div", "maal");
+      rij.append(h("div", "titel", (i === 0 ? "👑 " : "") + x.g.tekst), h("div", "klein", "🐔 " + cijferTxt(x.sc.gem) + " · " + x.r.loc + " · " + fmt(x.r.d, { day: "numeric", month: "long", year: "numeric" })));
+      top.append(rij);
+    });
+    box.append(top);
+    const perKok = PERS.map(p => { const l = beoordeeld.filter(x => x.r.loc === p); return [p, l.length ? Math.round(l.reduce((a, x) => a + x.sc.gem, 0) / l.length * 10) / 10 : 0]; })
+      .filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+    if (perKok.length) box.append(bars("👨‍🍳 Beste kok (gemiddeld cijfer)", perKok, 5, " 🐔"));
+  }
+  const lijst = h("div", "card"); lijst.append(h("h2", "", "🍽️ Wat hebben we gekookt?"));
+  if (!avonden.length) lijst.append(h("div", "klein", "Nog geen gekookte avonden."));
+  avonden.slice(0, menuAantal).forEach(r => lijst.append(maaltijdRij(r)));
+  if (avonden.length > menuAantal) {
+    const m = h("button", "meer", "Toon meer"); m.onclick = () => { menuAantal += 10; renderMenu(); }; lijst.append(m);
+  }
+  box.append(lijst);
+}
 
 // ===== Activiteiten =====
 function leesAct(rows) {
@@ -650,6 +770,14 @@ function renderNext() {
   box.append(card);
   box.append(ikKaart());
 
+  const laatste = gekookteAvonden()[0];
+  if (laatste) {
+    const km = h("div", "card"); km.append(h("h2", "", "🍽️ Laatste maaltijd"));
+    km.append(maaltijdRij(laatste));
+    const alle = h("button", "meer", "Alle gerechten & stemmen →"); alle.onclick = () => toonTab("t-menu"); km.append(alle);
+    box.append(km);
+  }
+
   const k2 = h("div", "card");
   k2.append(h("h2", "", "📅 Komende 5 edities"));
   items.slice(0, 5).forEach(it => k2.append(agendaRij(it, true)));
@@ -796,7 +924,7 @@ const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! �
 $("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-10-28b";
+const BUILD = "2026-10-29a";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
