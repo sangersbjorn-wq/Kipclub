@@ -668,9 +668,34 @@ function renderNext() {
 }
 
 // ===== Tab: Agenda =====
+async function schuifAgenda(knop) {
+  const eerste = DATA.filter(r => r.d >= vandaag && !r.voorstel).sort((a, b) => a.d - b.d)[0];
+  const wanneer = eerste ? fmt(eerste.d, { weekday: "long", day: "numeric", month: "long" }) : "de eerstvolgende avond";
+  if (!confirm("Weet je het zeker?\n\n" + wanneer + " wordt afgelast en iedereen die daarna kookt schuift een week op. De aanwezigen blijven staan.")) return;
+  knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
+  try {
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ actie: "schuif", naam: IK }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.fout || "onbekende fout");
+    await laden();
+    toast("Agenda is een week opgeschoven 🐔");
+  } catch (e) {
+    knop.disabled = false; knop.textContent = oud;
+    toast("Mislukt: " + (e.message && e.name !== "TypeError" ? e.message : foutTekst(e)));
+  }
+}
 function renderAgenda() {
   const box = $("#t-agenda"); box.textContent = "";
   box.append(ikKaart());
+  if (KAN_WIJZIGEN && IK === "Sjon") {
+    const bk = h("div", "card");
+    bk.append(h("h2", "", "🔧 Beheer (alleen Sjon)"));
+    bk.append(h("div", "klein", "Schuift de hele kooklijst een week op en zet de eerstvolgende avond op afgelast."));
+    const k = h("button", "pl", "⏩ Agenda een week opschuiven");
+    k.style.marginTop = "8px"; k.onclick = () => schuifAgenda(k);
+    bk.append(k); box.append(bk);
+  }
   const info = h("div", "card");
   info.append(h("div", "klein", `Alle geplande edities uit de Sheet, aangevuld met voorstellen volgens de beurtvolgorde (wie het langst geleden kookte, is aan de beurt). Afmelden kan tot ${DAGEN_VOORAF} dagen van tevoren.`));
   box.append(info);
@@ -769,7 +794,7 @@ const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! �
 $("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-10-25b";
+const BUILD = "2026-10-28a";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
