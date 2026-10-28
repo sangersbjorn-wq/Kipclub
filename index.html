@@ -424,9 +424,10 @@ async function stuurNaarScript(body, knop) {
 function maaltijdRij(r, bewerk) {
   const k = iso(r.d), g = gerechtVan(k), sc = scoreVan(k);
   const rij = h("div", "maal");
+  const mag = IK && (IK === r.loc || IK === "Sjon");
   rij.append(h("div", "titel", g ? "🍽️ " + g.tekst : "🍽️ Nog niet ingevuld"));
   rij.append(h("div", "klein", fmt(r.d, { weekday: "long", day: "numeric", month: "long" }) + " · " + r.loc + " kookte" + (sc.n ? " · 🐔 " + cijferTxt(sc.gem) + " (" + sc.n + (sc.n === 1 ? " stem)" : " stemmen)") : "")));
-  if (KAN_WIJZIGEN && IK && (!g || bewerk)) {
+  if (KAN_WIJZIGEN && mag && (!g || bewerk)) {
     const f = h("div", "gerechtform");
     const inp = document.createElement("input"); inp.type = "text"; inp.maxLength = 80; inp.placeholder = "Wat werd er gekookt?"; inp.value = g ? g.tekst : "";
     const kn = h("button", "", "Opslaan");
@@ -436,9 +437,11 @@ function maaltijdRij(r, bewerk) {
       if (j) { GERECHTEN = leesGerechten(j.gerechten); renderAll(); toast("Gerecht opgeslagen 🍽️"); }
     };
     f.append(inp, kn); rij.append(f);
-  } else if (KAN_WIJZIGEN && IK && g) {
+  } else if (KAN_WIJZIGEN && mag && g) {
     const e = h("button", "meer", "✏️ Aanpassen"); e.onclick = () => { rij.replaceWith(maaltijdRij(r, true)); };
     rij.append(e);
+  } else if (KAN_WIJZIGEN && IK && !g) {
+    rij.append(h("div", "klein", "De kok (" + r.loc + ") vult dit in."));
   }
   if (g && KAN_WIJZIGEN && IK) {
     if (IK === r.loc) {
@@ -924,7 +927,7 @@ const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! �
 $("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-10-29a";
+const BUILD = "2026-10-29b";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
