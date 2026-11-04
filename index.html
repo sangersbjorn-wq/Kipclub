@@ -981,7 +981,11 @@ function renderStats() {
 // Voeg een geluid toe: zet het mp3-bestand in de map sounds/ en voeg hieronder een regel toe.
 const GELUIDEN = [
   ["🐔 Kip", "sounds/kip.mp3"],
-  ["📯 Airhorn", "sounds/airhorn.mp3"]
+  ["📯 Airhorn", "sounds/airhorn.mp3"],
+  ["📺 Romig Erica", "sounds/erica.mp3"],
+  ["🎶 Rag M Erin", "sounds/ragmerin.mp3"],
+  ["🪵 Hoenkie Plankie", "sounds/hoenkie-plankie.mp3"],
+  ["🍳 Pan Bami", "sounds/pan-bami.mp3"]
 ];
 let speler = null;
 function speel(url) {
@@ -1026,7 +1030,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04h";
+const BUILD = "2026-11-04i";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
