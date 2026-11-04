@@ -971,6 +971,7 @@ function renderStats() {
 // ===== Soundboard (testversie, alleen zichtbaar voor Sjon) =====
 // Voeg een geluid toe: zet het mp3-bestand in de map sounds/ en voeg hieronder een regel toe.
 const GELUIDEN = [
+  ["🐔 Kip", "sounds/kip.mp3"],
   ["📯 Airhorn", "sounds/airhorn.mp3"]
 ];
 let speler = null;
@@ -1016,7 +1017,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04f";
+const BUILD = "2026-11-04g";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
