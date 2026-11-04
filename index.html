@@ -869,16 +869,12 @@ function renderAgenda() {
     const link = SCRIPT_URL + "?cal=" + CAL;
     const ck = h("div", "card");
     ck.append(h("h2", "", "📆 Agenda-link"));
-    ck.append(h("div", "klein", "Abonneer één keer op deze link en alle kipdagen en activiteiten staan automatisch in je eigen agenda. Google Agenda: 'Andere agenda's' → 'Via URL'. iPhone: Instellingen → Agenda → Accounts → Account toevoegen → Overig → Agenda-abonnement, en plak de link. Wijzigingen komen er na een paar uur in. Deel de link alleen met de club."));
+    ck.append(h("div", "klein", "Abonneer één keer op deze link en alle kipdagen en activiteiten staan automatisch in je eigen agenda. iPhone: tik op Kopieer en ga naar Instellingen → Agenda → Accounts → Account toevoegen → Overig → Agenda-abonnement, en plak de link. Wijzigingen komen er na een paar uur in. Deel de link alleen met de club."));
     const f = h("div", "gerechtform"); f.style.marginTop = "8px";
     const inp = document.createElement("input"); inp.type = "text"; inp.readOnly = true; inp.value = link; inp.onfocus = () => inp.select();
     const kopie = h("button", "pl", "📋 Kopieer");
     kopie.onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Link gekopieerd 👍"); } catch (e) { inp.select(); toast("Selecteer de link en kopieer hem"); } };
     f.append(inp, kopie); ck.append(f);
-    const x = h("div", "acties"); x.style.marginTop = "8px";
-    const wc = h("a", "pl", "➕ Toevoegen aan Google Agenda"); wc.href = "https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(link); wc.target = "_blank"; wc.rel = "noopener";
-    wc.style.textDecoration = "none"; wc.style.color = "inherit"; wc.style.display = "inline-block";
-    x.append(wc); ck.append(x);
     box.append(ck);
   }
   if (KAN_WIJZIGEN && IK === "Sjon") {
@@ -1039,7 +1035,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04d";
+const BUILD = "2026-11-04e";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
