@@ -347,7 +347,7 @@ async function inloggen(naam, code, knop) {
   }
 }
 
-let GERECHTEN = [], STEMMEN = [], menuAantal = 8;
+let GERECHTEN = [], STEMMEN = [], menuAantal = 8, SOUND_AAN = true;
 let ACT = [], DATA = [], PERS = PERSONEN.slice(), agendaWeken = AGENDA_START_WEKEN, KAN_WIJZIGEN = false, archiefFilter = "alles", laatsteLaad = 0;
 
 // ===== Laden =====
@@ -364,7 +364,7 @@ async function laden() {
       if (j.archiefFout) waarschuwing = j.archiefFout + " – archief en statistieken zijn daardoor beperkt";
       const map = new Map();
       arch.concat(plan).forEach(r => map.set(r.d.getTime(), r));
-      ACT = leesAct(j.activiteiten); GERECHTEN = leesGerechten(j.gerechten); STEMMEN = leesStemmen(j.stemmen); rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
+      ACT = leesAct(j.activiteiten); GERECHTEN = leesGerechten(j.gerechten); STEMMEN = leesStemmen(j.stemmen); SOUND_AAN = j.soundboard !== false; rijen = [...map.values()]; KAN_WIJZIGEN = true; via = "Live uit Google Sheets via het script";
     } catch (e) { fouten.push("script: " + foutTekst(e)); }
   } else {
     fouten.push("SCRIPT_URL is nog leeg, afmelden staat uit");
@@ -845,6 +845,12 @@ function renderNext() {
 }
 
 // ===== Tab: Agenda =====
+async function zetSoundboard(aan, knop) {
+  knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
+  const j = await stuurNaarScript({ actie: "soundboard", aan }, knop);
+  if (j) { SOUND_AAN = j.soundboard; renderAll(); toast(SOUND_AAN ? "Soundboard staat aan 🔊" : "Soundboard staat uit 🤫"); }
+  else knop.textContent = oud;
+}
 async function schuifAgenda(knop) {
   const eerste = DATA.filter(r => r.d >= vandaag && !r.voorstel).sort((a, b) => a.d - b.d)[0];
   const wanneer = eerste ? fmt(eerste.d, { weekday: "long", day: "numeric", month: "long" }) : "de eerstvolgende avond";
@@ -883,7 +889,10 @@ function renderAgenda() {
     bk.append(h("div", "klein", "Schuift de hele kooklijst een week op en zet de eerstvolgende avond op afgelast."));
     const k = h("button", "pl", "⏩ Agenda een week opschuiven");
     k.style.marginTop = "8px"; k.onclick = () => schuifAgenda(k);
-    bk.append(k); box.append(bk);
+    bk.append(k);
+    const sb = h("button", "pl", SOUND_AAN ? "🤫 Soundboard uitzetten" : "🔊 Soundboard aanzetten");
+    sb.style.marginTop = "8px"; sb.style.marginLeft = "8px"; sb.onclick = () => zetSoundboard(!SOUND_AAN, sb);
+    bk.append(sb); box.append(bk);
   }
   const info = h("div", "card");
   info.append(h("div", "klein", `Alle geplande edities uit de Sheet. Afmelden kan tot ${DAGEN_VOORAF} dagen van tevoren.`));
@@ -968,7 +977,7 @@ function renderStats() {
   box.append(info);
 }
 
-// ===== Soundboard (testversie, alleen zichtbaar voor Sjon) =====
+// ===== Soundboard (Sjon kan hem aan/uit zetten bij Beheer) =====
 // Voeg een geluid toe: zet het mp3-bestand in de map sounds/ en voeg hieronder een regel toe.
 const GELUIDEN = [
   ["🐔 Kip", "sounds/kip.mp3"],
@@ -980,13 +989,13 @@ function speel(url) {
   catch (e) { toast("Geluid lukt niet op dit toestel"); }
 }
 function renderSound() {
-  const mag = IK === "Sjon", nav = $("#nav-sound");
+  const mag = SOUND_AAN, nav = $("#nav-sound");
   nav.hidden = !mag;
   const box = $("#t-sound"); box.textContent = "";
   if (!mag) { if (!box.hidden) toonTab("t-next"); return; }
   const c = h("div", "card");
-  c.append(h("h2", "", "🔊 Soundboard (testversie)"));
-  c.append(h("div", "klein", "Alleen zichtbaar voor jou. Tik op een knop om het geluid af te spelen. Meer geluiden volgen."));
+  c.append(h("h2", "", "🔊 Soundboard"));
+  c.append(h("div", "klein", "Tik op een knop om het geluid af te spelen. Meer geluiden volgen."));
   const w = h("div", "wie"); w.style.marginTop = "12px";
   GELUIDEN.forEach(([naam, url]) => {
     const k = h("button", "pl", naam); k.style.padding = "14px 16px"; k.style.fontSize = "16px";
@@ -1017,7 +1026,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04g";
+const BUILD = "2026-11-04h";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
