@@ -127,6 +127,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
 <script>
 // ===== Instellingen =====
 // Plak hier de web-app-URL van het Google Apps Script (eindigt op /exec). Leeg = alleen lezen.
+const CAL_TOKEN = "9eab18c675e13af414473ac8d41f17c1";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVS5nLM99vmlk2UNlrcxSeB-Ec4xAZdQ6TsWEhJYu1NwRC4Cv2gmKhX-dVUjKtJHCM7A/exec";
 
 const SITE_URL = "https://sangersbjorn-wq.github.io/Kipclub/";
@@ -314,9 +315,36 @@ function toast(tekst) {
 }
 
 // Wie ben jij? (alleen op dit apparaat onthouden)
-let IK = "";
-try { IK = localStorage.getItem("kipclub_ik") || ""; } catch (e) {}
-function zetIk(p) { IK = p; try { if (p) localStorage.setItem("kipclub_ik", p); else localStorage.removeItem("kipclub_ik"); } catch (e) {} renderAll(); }
+let IK = "", CODE = "", KIES = "";
+try {
+  const o = JSON.parse(localStorage.getItem("kipclub_login") || "null");
+  if (o && o.ik && o.code && o.exp > Date.now()) { IK = o.ik; CODE = o.code; }
+  else localStorage.removeItem("kipclub_login");
+  localStorage.removeItem("kipclub_ik");
+} catch (e) {}
+function zetIk(p) { // p = "" betekent uitloggen
+  IK = p; if (!p) CODE = ""; KIES = "";
+  try { if (!p) localStorage.removeItem("kipclub_login"); } catch (e) {}
+  renderAll();
+}
+async function inloggen(naam, code, knop) {
+  code = String(code || "").trim();
+  if (!code) return toast("Vul je code in");
+  if (knop) { knop.disabled = true; knop.textContent = "…"; }
+  try {
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ actie: "login", naam, code }) });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.fout || "onbekende fout");
+    IK = naam; CODE = code; KIES = "";
+    try { localStorage.setItem("kipclub_login", JSON.stringify({ ik: naam, code, exp: Date.now() + 30 * 864e5 })); } catch (e) {}
+    renderAll();
+    toast("Welkom " + naam + " 🐔");
+  } catch (e) {
+    if (knop) { knop.disabled = false; knop.textContent = "Inloggen"; }
+    toast("Mislukt: " + (e.message && e.name !== "TypeError" ? e.message : foutTekst(e)));
+  }
+}
 
 let GERECHTEN = [], STEMMEN = [], menuAantal = 8;
 let ACT = [], DATA = [], PERS = PERSONEN.slice(), agendaWeken = AGENDA_START_WEKEN, KAN_WIJZIGEN = false, archiefFilter = "alles", laatsteLaad = 0;
@@ -411,7 +439,7 @@ function gekookteAvonden() {
 async function stuurNaarScript(body, knop) {
   const oud = knop ? knop.textContent : ""; if (knop) { knop.disabled = true; knop.textContent = "…"; }
   try {
-    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
+    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ naam: IK, code: CODE }, body)) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     return j;
@@ -500,6 +528,11 @@ function leesAct(rows) {
     return { d: parseDatum(r[cD]), tijd: m ? ("0" + m[1]).slice(-2) + ":" + m[2] : "", tekst: String(r[cA] || "").trim().replace(/^'/, ""), door: String(cW >= 0 ? r[cW] || "" : "").trim(), eigen: true };
   }).filter(a => a.d && a.tekst);
 }
+function actsOp(d, r) {
+  const sk = r && r.act ? actTekst(r).toLowerCase() : "";
+  return ACT.filter(a => iso(a.d) === iso(d) && a.tekst.toLowerCase() !== sk);
+}
+const actLabel = a => "🎉 " + (a.tijd ? a.tijd + " · " : "") + a.tekst;
 function komendeActiviteiten() {
   const lijst = ACT.filter(a => a.d >= vandaag).map(a => ({ d: a.d, tijd: a.tijd, tekst: a.tekst, door: a.door, eigen: true }));
   DATA.filter(r => r.d >= vandaag && r.act).forEach(r => {
@@ -509,11 +542,12 @@ function komendeActiviteiten() {
   return lijst.sort((a, b) => (a.d - b.d) || (a.tijd || "99:99").localeCompare(b.tijd || "99:99"));
 }
 async function verwijderActiviteit(a, knop) {
+  if (!IK) return toast("Log eerst in met je code");
   if (!confirm("Activiteit '" + a.tekst + "' verwijderen?")) return;
   knop.disabled = true;
   try {
     const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ actie: "activiteit_verwijder", datum: iso(a.d), tekst: a.tekst }) });
+      body: JSON.stringify({ actie: "activiteit_verwijder", datum: iso(a.d), tekst: a.tekst, naam: IK, code: CODE }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     ACT = leesAct(j.activiteiten);
@@ -525,12 +559,12 @@ async function verwijderActiviteit(a, knop) {
   }
 }
 async function meldActiviteit(datum, tijd, tekst, knop) {
-  if (!IK) return toast("Kies bovenaan eerst wie je bent");
+  if (!IK) return toast("Log eerst in met je code");
   if (!datum || !tekst.trim()) return toast("Vul een datum en een activiteit in");
   knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
   try {
     const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ actie: "activiteit", datum, tijd: tijd || "", tekst: tekst.trim(), naam: IK }) });
+      body: JSON.stringify({ actie: "activiteit", datum, tijd: tijd || "", tekst: tekst.trim(), naam: IK, code: CODE }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     ACT = leesAct(j.activiteiten);
@@ -583,7 +617,7 @@ async function zet(r, actie, knop) {
   knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
   try {
     const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ datum: iso(r.d), naam: IK, actie }) });
+      body: JSON.stringify({ datum: iso(r.d), naam: IK, code: CODE, actie }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     r.aanw = j.aanwezigen;
@@ -621,10 +655,20 @@ function ikKaart() {
     const w = h("button", "pl", "Ben je iemand anders?"); w.onclick = () => zetIk("");
     b.append(w); c.append(b);
   } else {
-    c.append(h("div", "", "👋 Wie ben jij? Dan kun je je zelf afmelden."));
+    c.append(h("div", "", "👋 Wie ben jij? Kies je naam en vul je code in."));
     const w = h("div", "wie");
-    PERS.forEach(p => { const k = h("button", "pl", p); k.onclick = () => zetIk(p); w.append(k); });
+    PERS.forEach(p => { const k = h("button", "pl" + (KIES === p ? " on" : ""), p); k.onclick = () => { KIES = p; renderAll(); }; w.append(k); });
     c.append(w);
+    if (KIES) {
+      const f = h("div", "gerechtform"); f.style.marginTop = "10px";
+      const inp = document.createElement("input"); inp.type = "password"; inp.inputMode = "numeric"; inp.autocomplete = "off";
+      inp.placeholder = `Code van ${KIES}`; inp.setAttribute("aria-label", "Code");
+      const kn = h("button", "pl", "Inloggen");
+      kn.onclick = () => inloggen(KIES, inp.value, kn);
+      inp.onkeydown = e => { if (e.key === "Enter") kn.click(); };
+      f.append(inp, kn); c.append(f);
+      setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+    }
   }
   return c;
 }
@@ -639,12 +683,7 @@ function agendaItems(weken) {
   const dagen = new Map();
   DATA.filter(r => r.d >= vandaag).forEach(r => dagen.set(r.d.getTime(), r));
   const eind = new Date(vandaag); eind.setDate(eind.getDate() + weken * 7);
-  const t = new Date(vandaag);
-  while (t.getDay() !== 2) t.setDate(t.getDate() + 1);
-  for (; t <= eind; t.setDate(t.getDate() + 7)) {
-    if (!dagen.has(t.getTime())) dagen.set(t.getTime(), { d: new Date(t), voorstel: true });
-  }
-  return [...dagen.keys()].sort((a, b) => a - b).map(k => {
+  return [...dagen.keys()].filter(k => k <= eind.getTime()).sort((a, b) => a - b).map(k => {
     const r = dagen.get(k);
     const it = { d: r.d, row: r.voorstel ? null : r, voorstel: !!r.voorstel, wie: null, laatste: null, status: r.status || "koken" };
     if (it.voorstel) {
@@ -717,6 +756,7 @@ function agendaRij(it, compact) {
 
   if (it.voorstel) t.append(h("span", "badge v", "voorstel (beurtvolgorde)"));
   if (r && r.act) t.append(h("span", "badge", "🎉 " + actTekst(r)));
+  actsOp(it.d, r).forEach(a => t.append(h("span", "badge", actLabel(a))));
   if (r && r.opm && !(r.act && r.act.toLowerCase() === "ja")) t.append(h("div", "opm", r.opm));
   const ab = actieBalk(it); if (ab) t.append(ab);
   if (!compact && it.status !== "afgelast") {
@@ -735,6 +775,10 @@ function renderNext() {
   const box = $("#t-next"); box.textContent = "";
   const items = agendaItems(10);
   const eerste = items[0];
+  if (!eerste) {
+    const leeg = h("div", "card"); leeg.append(h("div", "klein", "Er staan nog geen komende edities in de Sheet."));
+    box.append(leeg, ikKaart()); return;
+  }
   const card = h("div", "card next");
   card.append(h("div", "label", "Eerstvolgende dinsdag"));
   const n = dagenTot(eerste.d);
@@ -763,6 +807,7 @@ function renderNext() {
       card.append(h("div", "sub", "👥 Aanwezigen: nog niet ingevuld"));
     }
   }
+  actsOp(eerste.d, eerste.row).forEach(a => card.append(h("div", "sub", actLabel(a))));
   const ab = actieBalk(eerste); if (ab) { ab.style.justifyContent = "center"; card.append(ab); }
   if (eerste.status !== "afgelast") {
     const x = h("div", "acties"); x.style.justifyContent = "center";
@@ -803,12 +848,10 @@ async function schuifAgenda(knop) {
   const eerste = DATA.filter(r => r.d >= vandaag && !r.voorstel).sort((a, b) => a.d - b.d)[0];
   const wanneer = eerste ? fmt(eerste.d, { weekday: "long", day: "numeric", month: "long" }) : "de eerstvolgende avond";
   if (!confirm("Weet je het zeker?\n\n" + wanneer + " wordt afgelast en iedereen die daarna kookt schuift een week op. De aanwezigen blijven staan.")) return;
-  const pin = prompt("Pincode:");
-  if (pin === null || pin === "") return;
   knop.disabled = true; const oud = knop.textContent; knop.textContent = "Bezig…";
   try {
     const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ actie: "schuif", naam: IK, pin }) });
+      body: JSON.stringify({ actie: "schuif", naam: IK, code: CODE }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
     await laden();
@@ -821,6 +864,22 @@ async function schuifAgenda(knop) {
 function renderAgenda() {
   const box = $("#t-agenda"); box.textContent = "";
   box.append(ikKaart());
+  if (KAN_WIJZIGEN && IK) {
+    const link = SCRIPT_URL + "?cal=" + CAL_TOKEN;
+    const ck = h("div", "card");
+    ck.append(h("h2", "", "📆 Agenda-link"));
+    ck.append(h("div", "klein", "Abonneer één keer op deze link en alle kipdagen en activiteiten staan automatisch in je eigen agenda. Google Agenda: 'Andere agenda's' → 'Via URL'. iPhone: knop hieronder. Wijzigingen komen er na een paar uur in. Deel de link alleen met de club."));
+    const f = h("div", "gerechtform"); f.style.marginTop = "8px";
+    const inp = document.createElement("input"); inp.type = "text"; inp.readOnly = true; inp.value = link; inp.onfocus = () => inp.select();
+    const kopie = h("button", "pl", "📋 Kopieer");
+    kopie.onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Link gekopieerd 👍"); } catch (e) { inp.select(); toast("Selecteer de link en kopieer hem"); } };
+    f.append(inp, kopie); ck.append(f);
+    const x = h("div", "acties"); x.style.marginTop = "8px";
+    const wc = h("a", "pl", "📲 Abonneer (iPhone/Mac)"); wc.href = link.replace(/^https:/, "webcal:");
+    wc.style.textDecoration = "none"; wc.style.color = "inherit"; wc.style.display = "inline-block";
+    x.append(wc); ck.append(x);
+    box.append(ck);
+  }
   if (KAN_WIJZIGEN && IK === "Sjon") {
     const bk = h("div", "card");
     bk.append(h("h2", "", "🔧 Beheer (alleen Sjon)"));
@@ -830,7 +889,7 @@ function renderAgenda() {
     bk.append(k); box.append(bk);
   }
   const info = h("div", "card");
-  info.append(h("div", "klein", `Alle geplande edities uit de Sheet, aangevuld met voorstellen volgens de beurtvolgorde (wie het langst geleden kookte, is aan de beurt). Afmelden kan tot ${DAGEN_VOORAF} dagen van tevoren.`));
+  info.append(h("div", "klein", `Alle geplande edities uit de Sheet. Afmelden kan tot ${DAGEN_VOORAF} dagen van tevoren.`));
   box.append(info);
   let maand = "";
   agendaItems(agendaWeken).forEach(it => {
@@ -853,6 +912,7 @@ function archiefRij(r) {
   t.append(h("div", "klein", (r.wk ? `Week ${r.wk} · ` : "") + fmt(r.d, { weekday: "long", year: "numeric" })));
   if (r.aanw.length) t.append(chipsVoor(r));
   if (r.act) t.append(h("span", "badge", "🎉 " + (r.act.toLowerCase() === "ja" ? "Activiteit" : r.act)));
+  actsOp(r.d, r).forEach(a => t.append(h("span", "badge", actLabel(a))));
   if (r.opm) t.append(h("div", "opm", r.opm));
   c.append(dat, t);
   return c;
@@ -868,7 +928,7 @@ function renderArchief(filter) {
   });
   box.append(f);
   const sel = DATA.filter(r => r.d < vandaag).filter(r =>
-    filter === "alles" ? true : filter === "act" ? !!r.act : r.status === filter).reverse();
+    filter === "alles" ? true : filter === "act" ? (!!r.act || actsOp(r.d, r).length > 0) : r.status === filter).reverse();
   if (!sel.length) box.append(h("div", "card", "Niets gevonden."));
   sel.forEach(r => box.append(archiefRij(r)));
 }
@@ -927,7 +987,7 @@ const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! �
 $("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-10-29b";
+const BUILD = "2026-11-04a";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
