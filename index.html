@@ -110,6 +110,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
     <button data-t="t-act">Activiteiten</button>
     <button data-t="t-menu">Menu</button>
     <button data-t="t-stats">Statistieken</button>
+    <button data-t="t-sound" id="nav-sound" hidden>🔊 Soundboard</button>
   </nav>
 </header>
 
@@ -120,6 +121,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
   <section class="tab" id="t-act" hidden></section>
   <section class="tab" id="t-menu" hidden></section>
   <section class="tab" id="t-stats" hidden></section>
+  <section class="tab" id="t-sound" hidden></section>
 </main>
 <footer id="bron">Laden…</footer>
 <div id="toast"></div>
@@ -404,7 +406,7 @@ async function laden() {
   laatsteLaad = Date.now();
   renderAll();
 }
-function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderAct(); renderMenu(); renderStats(); }
+function renderAll() { renderNext(); renderAgenda(); renderArchief(archiefFilter); renderAct(); renderMenu(); renderStats(); renderSound(); }
 
 // ===== Menu: wat hebben we gekookt + stemmen =====
 function kolommenVan(rows, namen) {
@@ -970,6 +972,52 @@ function renderStats() {
   box.append(info);
 }
 
+// ===== Soundboard (testversie, alleen zichtbaar voor Sjon) =====
+let AC = null;
+function audio() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); return AC; }
+function toon(freq, start, dur, type, vol, naar) { // één toon, evt. glijdend naar een andere frequentie
+  const a = audio(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime + start;
+  o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+  if (naar) o.frequency.exponentialRampToValueAtTime(naar, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.3, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function ruis(start, dur, vol, hoog) {
+  const a = audio(), n = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const b = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime + start;
+  f.type = "bandpass"; f.frequency.value = hoog || 1500; g.gain.value = vol || 0.3;
+  b.buffer = buf; b.connect(f); f.connect(g); g.connect(a.destination); b.start(t);
+}
+const GELUIDEN = [
+  ["🐔 Kip", () => { for (let i = 0; i < 6; i++) toon(700 + Math.random() * 300, i * 0.11, 0.09, "square", 0.12, 400 + Math.random() * 200); }],
+  ["🐓 Haan", () => { toon(500, 0, 0.25, "sawtooth", 0.15, 900); toon(900, 0.3, 0.2, "sawtooth", 0.15, 600); toon(700, 0.55, 0.5, "sawtooth", 0.15, 350); }],
+  ["🥚 Ei kraakt", () => { ruis(0, 0.05, 0.6, 3000); ruis(0.08, 0.04, 0.4, 2500); toon(300, 0.1, 0.12, "triangle", 0.15, 120); }],
+  ["🔔 Eten is klaar", () => { [0, 0.5, 1.0].forEach(t => { toon(1320, t, 0.9, "sine", 0.25); toon(1980, t, 0.6, "sine", 0.08); }); }],
+  ["🥁 Tromgeroffel", () => { for (let i = 0; i < 24; i++) ruis(i * 0.055, 0.05, 0.25, 200); ruis(1.4, 0.4, 0.6, 150); toon(120, 1.4, 0.4, "sine", 0.4, 50); }],
+  ["🎉 Tadaa", () => { [523, 659, 784].forEach((f, i) => toon(f, i * 0.12, 0.2, "triangle", 0.25)); [523, 659, 784, 1047].forEach(f => toon(f, 0.4, 0.8, "triangle", 0.15)); }],
+  ["👏 Applaus", () => { for (let i = 0; i < 40; i++) ruis(Math.random() * 1.8, 0.04 + Math.random() * 0.04, 0.35, 1800 + Math.random() * 2000); }],
+  ["😬 Au", () => { toon(500, 0, 0.35, "sawtooth", 0.15, 200); }],
+  ["🥁 Gong", () => { toon(110, 0, 2.5, "sine", 0.4); toon(165, 0, 2, "sine", 0.2); toon(222, 0, 1.5, "triangle", 0.1); }],
+  ["📣 Kokkerokoo!", () => { toon(400, 0, 0.12, "sawtooth", 0.15); toon(600, 0.15, 0.12, "sawtooth", 0.15); toon(800, 0.3, 0.12, "sawtooth", 0.15); toon(1000, 0.45, 0.9, "sawtooth", 0.15, 500); }]
+];
+function renderSound() {
+  const mag = IK === "Sjon", nav = $("#nav-sound");
+  nav.hidden = !mag;
+  const box = $("#t-sound"); box.textContent = "";
+  if (!mag) { if (!box.hidden) toonTab("t-next"); return; }
+  const c = h("div", "card");
+  c.append(h("h2", "", "🔊 Soundboard (testversie)"));
+  c.append(h("div", "klein", "Alleen zichtbaar voor jou. Tik op een knop om het geluid af te spelen. Dit zijn nagemaakte geluidjes; later kunnen er echte opnames bij."));
+  const w = h("div", "wie"); w.style.marginTop = "12px";
+  GELUIDEN.forEach(([naam, f]) => {
+    const k = h("button", "pl", naam); k.style.padding = "14px 16px"; k.style.fontSize = "16px";
+    k.onclick = () => { try { f(); } catch (e) { toast("Geluid lukt niet op dit toestel"); } };
+    w.append(k);
+  });
+  c.append(w); box.append(c);
+}
+
 // ===== Tabs =====
 function toonTab(id) {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x.dataset.t === id));
@@ -991,7 +1039,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04b";
+const BUILD = "2026-11-04c";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
