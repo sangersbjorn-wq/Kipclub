@@ -127,7 +127,6 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:0 14px 30px}
 <script>
 // ===== Instellingen =====
 // Plak hier de web-app-URL van het Google Apps Script (eindigt op /exec). Leeg = alleen lezen.
-const CAL_TOKEN = "9eab18c675e13af414473ac8d41f17c1";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVS5nLM99vmlk2UNlrcxSeB-Ec4xAZdQ6TsWEhJYu1NwRC4Cv2gmKhX-dVUjKtJHCM7A/exec";
 
 const SITE_URL = "https://sangersbjorn-wq.github.io/Kipclub/";
@@ -315,15 +314,15 @@ function toast(tekst) {
 }
 
 // Wie ben jij? (alleen op dit apparaat onthouden)
-let IK = "", CODE = "", KIES = "";
+let IK = "", CODE = "", CAL = "", KIES = "";
 try {
   const o = JSON.parse(localStorage.getItem("kipclub_login") || "null");
-  if (o && o.ik && o.code && o.exp > Date.now()) { IK = o.ik; CODE = o.code; }
+  if (o && o.ik && o.code && o.exp > Date.now()) { IK = o.ik; CODE = o.code; CAL = o.cal || ""; }
   else localStorage.removeItem("kipclub_login");
   localStorage.removeItem("kipclub_ik");
 } catch (e) {}
 function zetIk(p) { // p = "" betekent uitloggen
-  IK = p; if (!p) CODE = ""; KIES = "";
+  IK = p; if (!p) { CODE = ""; CAL = ""; } KIES = "";
   try { if (!p) localStorage.removeItem("kipclub_login"); } catch (e) {}
   renderAll();
 }
@@ -336,8 +335,8 @@ async function inloggen(naam, code, knop) {
       body: JSON.stringify({ actie: "login", naam, code }) });
     const j = await res.json();
     if (!j.ok) throw new Error(j.fout || "onbekende fout");
-    IK = naam; CODE = code; KIES = "";
-    try { localStorage.setItem("kipclub_login", JSON.stringify({ ik: naam, code, exp: Date.now() + 30 * 864e5 })); } catch (e) {}
+    IK = naam; CODE = code; CAL = j.cal || ""; KIES = "";
+    try { localStorage.setItem("kipclub_login", JSON.stringify({ ik: naam, code, cal: CAL, exp: Date.now() + 30 * 864e5 })); } catch (e) {}
     renderAll();
     toast("Welkom " + naam + " 🐔");
   } catch (e) {
@@ -864,8 +863,8 @@ async function schuifAgenda(knop) {
 function renderAgenda() {
   const box = $("#t-agenda"); box.textContent = "";
   box.append(ikKaart());
-  if (KAN_WIJZIGEN && IK) {
-    const link = SCRIPT_URL + "?cal=" + CAL_TOKEN;
+  if (KAN_WIJZIGEN && IK && CAL) {
+    const link = SCRIPT_URL + "?cal=" + CAL;
     const ck = h("div", "card");
     ck.append(h("h2", "", "📆 Agenda-link"));
     ck.append(h("div", "klein", "Abonneer één keer op deze link en alle kipdagen en activiteiten staan automatisch in je eigen agenda. Google Agenda: 'Andere agenda's' → 'Via URL'. iPhone: knop hieronder. Wijzigingen komen er na een paar uur in. Deel de link alleen met de club."));
@@ -983,11 +982,16 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && Date.now() - laatsteLaad > 60000) laden();
 });
 
-const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! 📣"];
-$("#logo").onclick = e => { const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip"); toast(KOK[Math.floor(Math.random() * KOK.length)]); };
+const KOK = ["Kok kok kok! 🐔", "Wie kookt er dinsdag? 🍳", "Kokkerokoo! 📣", "Wie het eerst kraait, mag afwassen 🐓", "Ik ben er klaar voor: 19:00! ⏰", "Eitje! 🥚", "Hmm, ruikt naar knoflook 🧄", "Geen kip, geen club 🐔", "Te weinig zout, zegt Ger 🧂", "Pas op, heet! 🔥", "Nog een toetje? 🍰", "Goed gekookt, chef! 👨‍🍳", "Pluk de dag, pluk de kip 🪶", "Dinsdag is kipdag 🗓️", "Wie geeft het eerste cijfer? 🐔🐔🐔🐔🐔", "Ik wil ook een bordje! 🍽️", "Kip-kip-hoera! 🎉"];
+let laatsteKok = -1;
+$("#logo").onclick = e => {
+  const l = e.currentTarget; l.classList.remove("wip"); void l.offsetWidth; l.classList.add("wip");
+  let i; do { i = Math.floor(Math.random() * KOK.length); } while (i === laatsteKok && KOK.length > 1);
+  laatsteKok = i; toast(KOK[i]);
+};
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04a";
+const BUILD = "2026-11-04b";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
@@ -998,6 +1002,18 @@ const BUILD = "2026-11-04a";
     }
   } catch (e) {}
 })();
+
+// Al ingelogd zonder agenda-link in het geheugen (oude login)? Stilletjes opnieuw ophalen
+if (IK && CODE && !CAL) {
+  fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ actie: "login", naam: IK, code: CODE }) })
+    .then(r => r.json()).then(j => {
+      if (j.ok && j.cal) {
+        CAL = j.cal;
+        try { localStorage.setItem("kipclub_login", JSON.stringify({ ik: IK, code: CODE, cal: CAL, exp: Date.now() + 30 * 864e5 })); } catch (e) {}
+        renderAll();
+      } else if (j.fout === "Foute code") zetIk("");
+    }).catch(() => {});
+}
 
 laden();
 </script>
