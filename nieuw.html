@@ -453,6 +453,7 @@ function maakSub(items, cur, set) {
 const label = e => isCancel(e) ? "Cancel" : isExtern(e) ? "Extern" : isPast(e) ? "Afg" : "19:00";
 function chipEl(e) { return el("div", "chip" + (isCancel(e) ? " gek" : !isPast(e) && dagenTot(e.d) <= 1 && isKok(e) ? " nu" : ""), label(e)); }
 function onder(e) {
+  if (isJub(e)) return "50e editie: dit vieren we";
   const g = gerechtVan(iso(e.d));
   if (g) return g.tekst;
   const a = actsOp(e)[0]; if (a) return a.x + (a.t ? " " + a.t : "");
@@ -467,11 +468,16 @@ function rij(e) {
   b.onclick = () => { detail = e; render(); };
   return b;
 }
+// Editienummer: alle avonden die doorgingen (cancel telt niet), op volgorde van datum
+const JUBILEUM = 50;
+function editieNr(e) { let n = 0; for (const x of DATA) { if (!isCancel(x)) n++; if (x === e) return isCancel(e) ? 0 : n; } return 0; }
+const isJub = e => editieNr(e) === JUBILEUM;
 const volgende = () => DATA.find(e => !isPast(e) && isKok(e));
 function groot(e) {
   const c = el("div", "groot"); c.append(el("div", "lab", "Eerstvolgende"));
   c.append(el("div", "dag", String(e.d.getDate())), el("div", "mnd", DAGL[e.d.getDay()] + " " + MNDL[e.d.getMonth()]));
   c.append(el("div", "kok", e.loc + " kookt"));
+  if (isJub(e)) c.append(el("div", "tag", "50e editie: dit vieren we"));
   const n = dagenTot(e.d); c.append(el("span", "tag", n === 0 ? "Vandaag" : n === 1 ? "Morgen" : "Over " + n + " dagen"));
   actsOp(e).forEach(a => c.append(el("div", "meta", "Ook die avond: " + a.x + (a.t ? " " + a.t : ""))));
   if (e.opm && !(e.act && e.act.toLowerCase() === "ja")) c.append(el("div", "meta", e.opm));
@@ -530,8 +536,9 @@ async function zetAanwezig(e, actie, knop) {
 function viewDetail() {
   const e = detail, m = $("#main"), k = iso(e.d);
   const kop = el("div", "kopscore"); const terug = el("button", "rond", "‹"); terug.setAttribute("aria-label", "Terug"); terug.onclick = () => { detail._bewerk = false; detail = null; render(); };
-  const t = el("div"); t.append(el("div", "titel", isCancel(e) ? "Cancel" : isExtern(e) ? "Extern" : e.loc + " kookt"), el("div", "meta", langD(e.d) + " · 19:00"));
+  const t = el("div"); t.append(el("div", "titel", isCancel(e) ? "Cancel" : isExtern(e) ? "Extern" : e.loc + " kookt"), el("div", "meta", langD(e.d) + " · 19:00" + (editieNr(e) ? " · editie " + editieNr(e) : "")));
   kop.append(terug, t); m.append(kop);
+  if (isJub(e)) { const j = el("div", "tag", "50e editie: dit vieren we"); j.style.marginBottom = "10px"; m.append(j); }
   actsOp(e).forEach(a => m.append(el("div", "meta", "Ook die avond: " + a.x + (a.t ? " · " + a.t : ""))));
   if (e.opm && !(e.act && e.act.toLowerCase() === "ja")) m.append(el("div", "meta", e.opm));
   if (isCancel(e)) { m.append(el("div", "meta", "Deze avond gaat niet door.")); return; }
@@ -705,8 +712,6 @@ function viewRecords(m, set, gek) {
     rec.push(["Beste avond", gerechtVan(iso(hoog.d)).tekst + " (" + hoog.loc + ") " + f1(gemEd(hoog))]);
     if (rated.length > 1) rec.push(["Laagste avond", gerechtVan(iso(laag.d)).tekst + " (" + laag.loc + ") " + f1(gemEd(laag))]);
   }
-  const druk = set.filter(e => e.d < vandaag && isKok(e) && e.aanw.length).sort((a, b) => b.aanw.length - a.aanw.length)[0];
-  if (druk) rec.push(["Meeste aanwezigen", druk.aanw.length + " op " + kortD(druk.d)]);
   let beste = null;
   PERS.forEach(p => {
     let run = 0, best = 0;
@@ -847,7 +852,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "nieuw-2026-11-09c";
+const BUILD = "nieuw-2026-11-09d";
 (async () => {
   try {
     const r = await fetch("nieuw.html?nocache=" + Date.now(), { cache: "no-store" });
