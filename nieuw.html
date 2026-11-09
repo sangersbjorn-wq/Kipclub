@@ -138,6 +138,7 @@ form.act .rij{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
 [hidden]{display:none!important}
 a.knop,a.rijkaart{text-decoration:none}
+.knop.rood{background:var(--rood-bg);color:var(--rood)}
 a.knop{color:var(--tekst)}
 .voet{padding:10px 16px}
 </style>
@@ -544,7 +545,7 @@ function viewDetail() {
   if (!isPast(e) && !isExtern(e) && KAN_WIJZIGEN && IK) {
     const eerst = e.aanw.includes(IK);
     if (dagenTot(e.d) >= DAGEN_VOORAF) {
-      const kn = el("button", "knop" + (eerst ? " l" : ""), eerst ? "Ik ben er niet" : "Ik ben er toch");
+      const kn = el("button", "knop" + (eerst ? " rood" : ""), eerst ? "Ik ben er niet" : "Ik ben er toch");
       kn.onclick = () => zetAanwezig(e, eerst ? "afmelden" : "aanmelden", kn); m.append(kn);
     } else m.append(el("div", "slot", "Wijzigen kan niet meer (minder dan een week). Vraag het aan Bjorn."));
   } else if (!isPast(e) && !isExtern(e) && KAN_WIJZIGEN && !IK) {
@@ -686,6 +687,15 @@ function viewStand() {
   }
   m.append(el("div", "voet", "Gerangschikt op gemiddeld cijfer van de gerechten, daarna op aanwezigheid. Seizoen loopt van 1 augustus tot 31 juli."));
 }
+// Aanwezigheidsstreak: avonden achter elkaar erbij; één keer afwezig zet de teller op nul. Cancel-avonden tellen niet mee.
+function streaks(set) {
+  const av = set.filter(e => e.d < vandaag && !isCancel(e) && e.aanw.length);
+  return PERS.map(p => {
+    let run = 0, best = 0;
+    av.forEach(e => { if (e.aanw.includes(p)) { run++; best = Math.max(best, run); } else run = 0; });
+    return { p, best, nu: run };
+  });
+}
 function viewRecords(m, set, gek) {
   const rated = gek.filter(e => gerechtVan(iso(e.d)) && gemEd(e) != null).sort((a, b) => gemEd(b) - gemEd(a));
   const g = el("div", "groep"); const k = el("div", "gk", "Records"); k.append(el("i", null, seizoen === "all" ? "all time" : seizoen)); g.append(k);
@@ -706,9 +716,19 @@ function viewRecords(m, set, gek) {
   if (beste) rec.push(["Langste reeks 4 of hoger", beste[0] + ", " + beste[1] + " keer achter elkaar"]);
   const keer = PERS.map(p => [p, gek.filter(e => e.loc === p).length]).sort((a, b) => b[1] - a[1])[0];
   if (keer && keer[1]) rec.push(["Meeste keer gekookt", keer[0] + " (" + keer[1] + ")"]);
+  const st = streaks(set), bestS = st.slice().sort((a, b) => b.best - a.best)[0];
+  if (bestS && bestS.best >= 2) rec.push(["Langste aanwezigheidsstreak", bestS.p + ", " + bestS.best + " keer achter elkaar"]);
   rec.forEach(([a, b]) => { const r = el("div", "regel"); r.append(el("span", null, a), el("span", null, b)); g.append(r); });
   if (!rec.length) g.append(el("div", "uitleg", "Nog niet genoeg gegevens voor records."));
   m.append(g);
+  const sg = el("div", "groep"); const sk = el("div", "gk", "Aanwezigheidsstreak"); sk.append(el("i", null, "keer achter elkaar erbij")); sg.append(sk);
+  st.slice().sort((a, b) => (b.best - a.best) || (b.nu - a.nu) || a.p.localeCompare(b.p)).forEach((x, i) => {
+    const r = el("div", "rijkaart"); const n = el("div", "n", x.p);
+    n.append(el("small", null, "Nu: " + x.nu + " op rij"));
+    r.append(n, el("div", "pil " + (i === 0 && x.best > 0 ? "g" : "o"), String(x.best))); sg.append(r);
+  });
+  if (!st.some(x => x.best)) sg.append(el("div", "uitleg", "Nog geen aanwezigheden ingevuld."));
+  m.append(sg);
   const gegeven = {}; PERS.forEach(p => gegeven[p] = []);
   const isoSet = new Set(set.map(e => iso(e.d)));
   STEMMEN.filter(v => isoSet.has(v.iso) && gegeven[v.naam]).forEach(v => gegeven[v.naam].push(v.cijfer));
@@ -827,7 +847,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "nieuw-2026-11-09a";
+const BUILD = "nieuw-2026-11-09b";
 (async () => {
   try {
     const r = await fetch("nieuw.html?nocache=" + Date.now(), { cache: "no-store" });
