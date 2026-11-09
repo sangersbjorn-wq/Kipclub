@@ -774,6 +774,7 @@ function agendaRij(it, compact) {
 // ===== Tab: Home =====
 function renderNext() {
   const box = $("#t-next"); box.textContent = "";
+  const nw = h("a", "card", "✨ Nieuwe versie proberen →"); nw.href = "nieuw.html"; nw.style.cssText = "display:block;text-align:center;font-weight:700;text-decoration:none;color:inherit"; box.append(nw);
   const items = agendaItems(10);
   const eerste = items[0];
   if (!eerste) {
@@ -1030,7 +1031,7 @@ $("#logo").onclick = e => {
 };
 
 // ===== Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update) =====
-const BUILD = "2026-11-04i";
+const BUILD = "2026-11-09a";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
