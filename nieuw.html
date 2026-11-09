@@ -147,7 +147,7 @@ a.knop{color:var(--tekst)}
 <div class="app" id="app">
  <header>
   <button id="kip" aria-label="Kip"><img src="icon-192.png" alt="" width="38" height="38" style="border-radius:50%"></button>
-  <div class="t"><b>Kipclub</b><span>Elke dinsdag 19:00</span></div>
+  <div class="t"><b>Kipclub</b><span>Dinsdag, Kipdag</span></div>
   <button class="ik" id="ik">Inloggen</button>
  </header>
  <div class="sub" id="sub" role="tablist" hidden></div>
@@ -847,7 +847,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "nieuw-2026-11-09b";
+const BUILD = "nieuw-2026-11-09c";
 (async () => {
   try {
     const r = await fetch("nieuw.html?nocache=" + Date.now(), { cache: "no-store" });
