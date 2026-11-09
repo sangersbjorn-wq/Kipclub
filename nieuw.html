@@ -462,7 +462,7 @@ function onder(e) {
 function rij(e) {
   const b = el("button", "w"); b.append(chipEl(e));
   const n = el("div", "n", isCancel(e) ? "Cancel" : isExtern(e) ? "Extern" : e.loc);
-  n.append(el("small", null, onder(e))); b.append(n);
+  n.append(el("small", null, (editieNr(e) ? "#" + editieNr(e) + " · " : "") + onder(e))); b.append(n);
   b.append(el("div", "mid", e.aanw.length ? e.aanw.length + " erbij" : "–"));
   const g = gemEd(e); b.append(el("div", g != null ? "pil " + kl(g) : "leeg", g != null ? f1(g) : "·"));
   b.onclick = () => { detail = e; render(); };
@@ -474,7 +474,7 @@ function editieNr(e) { let n = 0; for (const x of DATA) { if (!isCancel(x)) n++;
 const isJub = e => editieNr(e) === JUBILEUM;
 const volgende = () => DATA.find(e => !isPast(e) && isKok(e));
 function groot(e) {
-  const c = el("div", "groot"); c.append(el("div", "lab", "Eerstvolgende"));
+  const c = el("div", "groot"); c.append(el("div", "lab", "Eerstvolgende" + (editieNr(e) ? " · editie " + editieNr(e) : "")));
   c.append(el("div", "dag", String(e.d.getDate())), el("div", "mnd", DAGL[e.d.getDay()] + " " + MNDL[e.d.getMonth()]));
   c.append(el("div", "kok", e.loc + " kookt"));
   if (isJub(e)) c.append(el("div", "tag", "50e editie: dit vieren we"));
@@ -852,7 +852,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "nieuw-2026-11-09d";
+const BUILD = "nieuw-2026-11-09e";
 (async () => {
   try {
     const r = await fetch("nieuw.html?nocache=" + Date.now(), { cache: "no-store" });
