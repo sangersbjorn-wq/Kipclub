@@ -138,6 +138,7 @@ form.act .rij{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
 [hidden]{display:none!important}
 a.knop,a.rijkaart{text-decoration:none}
+.tag.goud{background:linear-gradient(135deg,#f7d56a,#c99a1c);color:#1a1300}
 .knop.rood{background:var(--rood-bg);color:var(--rood)}
 a.knop{color:var(--tekst)}
 .voet{padding:10px 16px}
@@ -469,18 +470,18 @@ function rij(e) {
   return b;
 }
 // Editienummer: alle avonden die doorgingen (cancel telt niet), op volgorde van datum
-const JUBILEUM = 50;
 // Tabblad "Archief reset" (2 jan - 14 aug 2025) telt 22 avonden die doorgingen en wordt niet in de app geladen
 const EDITIES_VOOR_ARCHIEF = 22;
 function editieNr(e) { let n = EDITIES_VOOR_ARCHIEF; for (const x of DATA) { if (!isCancel(x)) n++; if (x === e) return isCancel(e) ? 0 : n; } return 0; }
-const jubTekst = e => isPast(e) ? "50e editie" : "50e editie: dit vieren we";
-const isJub = e => editieNr(e) === JUBILEUM;
+const jubTekst = e => editieNr(e) + "e editie" + (isPast(e) ? "" : ": dit vieren we");
+const isJub = e => { const n = editieNr(e); return n > 0 && n % 25 === 0; };
+const jubKlasse = e => "tag" + (editieNr(e) % 100 === 0 ? " goud" : "");
 const volgende = () => DATA.find(e => !isPast(e) && isKok(e));
 function groot(e) {
   const c = el("div", "groot"); c.append(el("div", "lab", "Eerstvolgende" + (editieNr(e) ? " · editie " + editieNr(e) : "")));
   c.append(el("div", "dag", String(e.d.getDate())), el("div", "mnd", DAGL[e.d.getDay()] + " " + MNDL[e.d.getMonth()]));
   c.append(el("div", "kok", e.loc + " kookt"));
-  if (isJub(e)) c.append(el("div", "tag", jubTekst(e)));
+  if (isJub(e)) c.append(el("div", jubKlasse(e), jubTekst(e)));
   const n = dagenTot(e.d); c.append(el("span", "tag", n === 0 ? "Vandaag" : n === 1 ? "Morgen" : "Over " + n + " dagen"));
   actsOp(e).forEach(a => c.append(el("div", "meta", "Ook die avond: " + a.x + (a.t ? " " + a.t : ""))));
   if (e.opm && !(e.act && e.act.toLowerCase() === "ja")) c.append(el("div", "meta", e.opm));
@@ -541,7 +542,7 @@ function viewDetail() {
   const kop = el("div", "kopscore"); const terug = el("button", "rond", "‹"); terug.setAttribute("aria-label", "Terug"); terug.onclick = () => { detail._bewerk = false; detail = null; render(); };
   const t = el("div"); t.append(el("div", "titel", isCancel(e) ? "Cancel" : isExtern(e) ? "Extern" : e.loc + " kookt"), el("div", "meta", langD(e.d) + " · 19:00" + (editieNr(e) ? " · editie " + editieNr(e) : "")));
   kop.append(terug, t); m.append(kop);
-  if (isJub(e)) { const j = el("div", "tag", jubTekst(e)); j.style.marginBottom = "10px"; m.append(j); }
+  if (isJub(e)) { const j = el("div", jubKlasse(e), jubTekst(e)); j.style.marginBottom = "10px"; m.append(j); }
   actsOp(e).forEach(a => m.append(el("div", "meta", "Ook die avond: " + a.x + (a.t ? " · " + a.t : ""))));
   if (e.opm && !(e.act && e.act.toLowerCase() === "ja")) m.append(el("div", "meta", e.opm));
   if (isCancel(e)) { m.append(el("div", "meta", "Deze avond gaat niet door.")); return; }
@@ -855,7 +856,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "nieuw-2026-11-09f";
+const BUILD = "nieuw-2026-11-09g";
 (async () => {
   try {
     const r = await fetch("nieuw.html?nocache=" + Date.now(), { cache: "no-store" });
