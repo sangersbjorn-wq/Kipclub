@@ -268,6 +268,16 @@ const actTekst = r => r.act.toLowerCase() === "ja" ? (r.opm || "Activiteit") : r
 const seizoenVan = d => { const j = d.getMonth() >= SEIZOEN_START_MAAND ? d.getFullYear() : d.getFullYear() - 1; return j + "-" + (j + 1); };
 const HUIDIG = seizoenVan(vandaag);
 
+// ---- Thema: automatisch (telefoon), licht of donker ----
+let THEMA = "auto";
+try { THEMA = localStorage.getItem("kipclub_thema") || "auto"; } catch (e) {}
+function zetThema(t) {
+  THEMA = t;
+  try { if (t === "auto") localStorage.removeItem("kipclub_thema"); else localStorage.setItem("kipclub_thema", t); } catch (e) {}
+  if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
+}
+zetThema(THEMA);
+
 // ---- Toestand ----
 let IK = "", CODE = "", CAL = "";
 try {
@@ -826,6 +836,10 @@ function viewMeer() {
     kb.onclick = () => { if (!schuifBevestig) { schuifBevestig = true; render(); return; } schuifBevestig = false; schuifAgenda(); };
     s2.append(kb); g.append(s2); m.append(g);
   }
+  const w = el("div", "groep"); w.append(el("div", "gk", "Weergave"));
+  const sg = el("div", "seg"); sg.style.margin = "12px";
+  [["auto", "Automatisch"], ["light", "Licht"], ["dark", "Donker"]].forEach(([k, l]) => { const b = el("button", null, l); b.setAttribute("aria-pressed", String(THEMA === k)); b.onclick = () => { zetThema(k); render(); }; sg.append(b); });
+  w.append(sg); m.append(w);
   const a = el("div", "groep"); a.append(el("div", "gk", "Account"));
   const r = el("button", "rijkaart"); r.append(el("div", "n", IK ? "Ingelogd als " + IK : "Niet ingelogd"), el("span", "pijl", IK ? "Uitloggen" : "Inloggen"));
   r.onclick = () => { if (IK) uitloggen(); else { scherm = "login"; render(); } }; a.append(r);
@@ -856,7 +870,7 @@ $("#kip").onclick = e => {
 document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - laatsteLaad > 60000) laden(); });
 
 // Automatisch vernieuwen bij een nieuwe versie (BUILD ophogen bij elke update)
-const BUILD = "2026-11-09i";
+const BUILD = "2026-11-09j";
 (async () => {
   try {
     const r = await fetch("index.html?nocache=" + Date.now(), { cache: "no-store" });
